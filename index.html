@@ -557,6 +557,15 @@
   }
   .wayback-link:hover { text-decoration: underline; }
 
+  .search-link {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .search-link:hover { color: var(--amber); text-decoration: underline; }
+
   .avail-badge {
     font-family: var(--mono);
     font-size: 9px;
@@ -873,6 +882,9 @@ function renderUnavailable(count) {
   list.innerHTML = unavailableVideos.map(v => {
     const avail = v.availability || 'unavailable';
     const watchUrl = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    // Google search for the quoted watch URL — surfaces blog/forum/reddit
+    // mentions for videos too obscure for the Wayback Machine to have crawled.
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"youtube.com/watch?v=${v.id}"`)}`;
     return `
       <div class="video-item unavailable" id="uvi-${v.id}">
         <div class="video-index">${v.index != null ? String(v.index).padStart(2,'0') : '··'}</div>
@@ -882,6 +894,7 @@ function renderUnavailable(count) {
             <a href="${escHtml(watchUrl)}" target="_blank" rel="noopener">${escHtml(v.id)}</a>
           </div>
         </div>
+        <a class="search-link" href="${escHtml(searchUrl)}" target="_blank" rel="noopener" title="Google the video URL — useful for videos Wayback never crawled">🔎 Search</a>
         <a class="wayback-link" id="uw-${v.id}" style="display:none" target="_blank" rel="noopener">🔍 Wayback</a>
         <span class="rdl-badge" id="urd-${v.id}" style="display:none"></span>
         <span class="avail-badge ${escHtml(avail)}">${escHtml(avail)}</span>

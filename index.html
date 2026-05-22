@@ -255,7 +255,7 @@
   .video-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     max-height: 300px;
     overflow-y: auto;
     scrollbar-width: thin;
@@ -269,12 +269,13 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 10px;
+    padding: 10px 10px;
     background: var(--bg);
     border-left: 2px solid transparent;
     transition: border-color 0.15s, background 0.15s;
     position: relative;
     overflow: hidden;
+    flex-shrink: 0;            /* keep natural height; let the list scroll instead of compressing rows */
   }
 
   .video-item.active { border-left-color: var(--amber); background: rgba(245,158,11,0.04); }
@@ -292,6 +293,7 @@
 
   .video-title {
     font-size: 13px;
+    line-height: 1.4;
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
@@ -302,7 +304,9 @@
   .video-title.clean {
     font-family: var(--mono);
     font-size: 11px;
+    line-height: 1.4;
     color: var(--muted);
+    margin-top: 2px;
   }
 
   .video-duration {
@@ -525,7 +529,9 @@
   .video-id {
     font-family: var(--mono);
     font-size: 11px;
+    line-height: 1.4;
     color: var(--muted);
+    margin-top: 2px;
   }
 
   .video-id a { color: var(--blue); text-decoration: none; }
@@ -533,6 +539,7 @@
 
   .recovered-title {
     font-size: 13px;
+    line-height: 1.4;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;

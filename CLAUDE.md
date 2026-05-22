@@ -28,6 +28,7 @@ There is no build, lint, or test setup.
   - `GET /api/playlist-info?url=` - calls `getPlaylist()` from `lib/playlist.js`, returns normalized video metadata including `available` and `availability` fields. Unavailable videos have `title: null` (their placeholder title is stripped before returning).
   - `POST /api/download` - `{ url, outputDir, quality }` - spawns `yt-dlp`, responds immediately with `{ status: 'started' }`, then streams progress via SSE. Default output: `~/Downloads/YouTube Playlists/`. `quality` maps to a yt-dlp format selector via `formatMap` (`best`/`1080p`/`720p`/`480p`/`audio`).
   - `POST /api/recover` - `{ videoIds: string[] }` - calls `recoverTitles()` from `lib/recover.js`, responds immediately with `{ status: 'started' }`, then streams recovery progress via SSE.
+  - `POST /api/download-recovered` - `{ videos: [{id,index,title,url,waybackSnapshot,availability}], outputDir? }` - best-effort recovery of unavailable videos from the Internet Archive via `recoverMedia()` in `lib/archive.js`. Responds `{ status: 'started' }`, processes videos sequentially, streams progress via SSE. Saves to a `Recovered/` subfolder of the output dir.
   - `GET /api/health` - reports yt-dlp version and whether lib modules loaded.
 
 - **`lib/playlist.js`** - Enumerates every video in a YouTube playlist via `yt-dlp --flat-playlist -J`. Returns available and unavailable videos in a single array with `available: boolean` and `availability: 'public'|'private'|'deleted'|'unlisted'|'unavailable'` per entry. Availability is classified from the placeholder title (`[Private video]`, `[Deleted video]`, `[Unavailable video]`) because the per-entry `availability` field is null in flat mode for all entries.
@@ -35,6 +36,8 @@ There is no build, lint, or test setup.
 - **`lib/recover.js`** - Wayback Machine title recovery. For each video ID: queries the Wayback CDX API for the earliest 200-status snapshot, fetches it with the `id_` raw-content modifier (no toolbar rewrites), and extracts the title (prefers `og:title`, falls back to `<title>` with " - YouTube" stripped). Uses Node's global `fetch` (Node 18+). No npm dependencies. Concurrency: 3 simultaneous requests, 500ms delay between starts.
 
 - **`index.html`** - Single-page frontend. Vanilla JS, inline CSS, no framework, no bundler. Hardcodes backend at `const API = 'http://localhost:3001'`. Opens an `EventSource` to `/api/events` for live progress on both download and recovery.
+
+- **`lib/archive.js`** - Best-effort video recovery from the Internet Archive. For each unavailable video, runs `yt-dlp "ytarchive:<id>"` (the `web.archive:youtube` extractor) to pull the archived video stream when Archive Team grabbed it; otherwise a second `--skip-download --write-thumbnail --write-info-json` pass saves whatever metadata/thumbnail is archived. Always writes a `<stem>.txt` sidecar with the recovered title + source URLs. Classifies each result as `video` | `thumbnail` | `metadata` | `none` by inspecting the files written for that filename stem.
 
 - **`recover_playlist_titles.py`** - Standalone CLI, independent of the server. Same Wayback CDX logic as `lib/recover.js` but in Python, using `requests`. Kept as an optional offline fallback.
 
@@ -53,6 +56,12 @@ Recovery events (from `POST /api/recover`):
 - `recover_progress` - `{ done, total, current: { videoId, title } }`
 - `recover_complete` - `{ results }` - full array of `{ videoId, title, url, waybackSnapshot }`
 - `recover_error` - `{ message }`
+
+Video-recovery events (from `POST /api/download-recovered`):
+- `rdl_start` - `{ total, outputDir }`
+- `rdl_item_start` - `{ index, total, id, title }`
+- `rdl_item_done` - `{ index, total, id, title, outcome, files }` - outcome is `video` | `thumbnail` | `metadata` | `none`
+- `rdl_complete` - `{ outputDir, results, videoCount }`
 
 ## Gotchas
 

@@ -20,6 +20,7 @@ You saved a YouTube playlist years ago. Some videos are now deleted or private. 
 - Quality selection: best, 1080p, 720p, 480p, audio-only
 - Live download progress via Server-Sent Events (per-file progress bar, speed, ETA)
 - Wayback Machine title recovery with live progress for unavailable videos
+- Best-effort video recovery for unavailable videos from the Internet Archive (yt-dlp's `web.archive:youtube` extractor), falling back to thumbnail + metadata when the video stream was never archived
 - CSV export of recovered titles
 
 ---
@@ -67,13 +68,17 @@ index.html (vanilla JS SPA)
     |  GET  /api/playlist-info?url=
     |  POST /api/download
     |  POST /api/recover
-    |  GET  /api/events  (SSE - live progress for both download and recovery)
+    |  POST /api/download-recovered
+    |  GET  /api/events  (SSE - live progress for download, title recovery, and video recovery)
     v
 server.js (Express, port 3001)
     |-- lib/playlist.js  -- shells to yt-dlp --flat-playlist -J; classifies
     |                        available vs unavailable by placeholder title pattern
     |-- lib/recover.js   -- queries Wayback CDX API, fetches snapshots,
-                            extracts og:title / <title> from archived HTML
+    |                        extracts og:title / <title> from archived HTML
+    |-- lib/archive.js   -- shells to yt-dlp `ytarchive:<id>` to pull archived
+                            videos from the Internet Archive; falls back to
+                            thumbnail + metadata sidecar
 ```
 
 The server also serves `index.html` statically, so `node server.js` is the only process you need.

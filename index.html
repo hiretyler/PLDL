@@ -567,6 +567,22 @@
     flex-shrink: 0;
     white-space: nowrap;
   }
+  .rdl-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 7px;
+    border: 1px solid;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .rdl-badge.working  { color: var(--amber); border-color: var(--amber-dim); }
+  .rdl-badge.video    { color: var(--green); border-color: rgba(34,197,94,0.4); }
+  .rdl-badge.thumbnail{ color: var(--blue);  border-color: rgba(59,130,246,0.4); }
+  .rdl-badge.metadata { color: var(--muted); border-color: var(--border); }
+  .rdl-badge.none     { color: var(--red);   border-color: rgba(239,68,68,0.4); }
+
   .avail-badge.deleted     { color: var(--red);   border-color: rgba(239,68,68,0.4); }
   .avail-badge.private     { color: var(--amber); border-color: var(--amber-dim); }
   .avail-badge.unlisted    { color: var(--amber); border-color: var(--amber-dim); }
@@ -636,11 +652,16 @@
     </div>
     <div class="video-list" id="unavailableList" style="max-height:240px;"></div>
     <div class="status-line" id="recoverStatus" style="display:none"></div>
-    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end;">
+    <div class="status-line" id="archiveStatus" style="display:none"></div>
+    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
       <button class="btn outline" id="recoverBtn" onclick="recoverTitles()">
         <span id="recoverBtnText">⚡ Recover Titles</span>
       </button>
       <button class="btn outline" id="csvBtn" onclick="downloadCsv()" disabled>⬇ Download CSV</button>
+      <button class="btn outline" id="archiveBtn" onclick="recoverVideos()" disabled
+              title="Best-effort: pulls the video from the Internet Archive when it was archived, otherwise saves the thumbnail + metadata.">
+        <span id="archiveBtnText">⬇ Recover Videos</span>
+      </button>
     </div>
   </div>
 
@@ -832,7 +853,12 @@ function renderUnavailable(count) {
   const recStatus = document.getElementById('recoverStatus');
   recStatus.style.display = 'none';
   recStatus.innerHTML = '';
+  const arcStatus = document.getElementById('archiveStatus');
+  arcStatus.style.display = 'none';
+  arcStatus.innerHTML = '';
   document.getElementById('csvBtn').disabled = true;
+  document.getElementById('archiveBtn').disabled = true;
+  document.getElementById('archiveBtnText').textContent = '⬇ Recover Videos';
   document.getElementById('recoverBtn').disabled = false;
   document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
 
@@ -857,6 +883,7 @@ function renderUnavailable(count) {
           </div>
         </div>
         <a class="wayback-link" id="uw-${v.id}" style="display:none" target="_blank" rel="noopener">🔍 Wayback</a>
+        <span class="rdl-badge" id="urd-${v.id}" style="display:none"></span>
         <span class="avail-badge ${escHtml(avail)}">${escHtml(avail)}</span>
       </div>`;
   }).join('');
@@ -915,6 +942,55 @@ async function recoverTitles() {
     recStatus.innerHTML = `<span class="dot red"></span> Error: ${escHtml(e.message)}`;
     btn.disabled = false;
     document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+    if (eventSource) eventSource.close();
+  }
+}
+
+function setRdlBadge(videoId, cls, text) {
+  const b = document.getElementById(`urd-${videoId}`);
+  if (!b) return;
+  b.className = `rdl-badge ${cls}`;
+  b.textContent = text;
+  b.style.display = 'inline';
+}
+
+// ── Recover videos from the Internet Archive (best-effort) ─────────────
+async function recoverVideos() {
+  if (!unavailableVideos.length) return;
+
+  const btn = document.getElementById('archiveBtn');
+  btn.disabled = true;
+  document.getElementById('archiveBtnText').innerHTML = '<span class="spinner"></span>';
+
+  // Send the recovered metadata so the backend can build good filenames.
+  const payload = unavailableVideos.map(v => ({
+    id: v.id,
+    index: v.index,
+    title: v.recoveredTitle || null,
+    url: v.url || `https://www.youtube.com/watch?v=${v.id}`,
+    waybackSnapshot: v.waybackSnapshot || '',
+    availability: v.availability || 'unavailable',
+  }));
+
+  // Reuse the single shared EventSource for rdl_* events.
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource(`${API}/api/events`);
+  eventSource.onmessage = handleSseMessage;
+
+  try {
+    const r = await fetch(`${API}/api/download-recovered`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videos: payload }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Recovery request failed');
+  } catch (e) {
+    const s = document.getElementById('archiveStatus');
+    s.style.display = 'flex';
+    s.innerHTML = `<span class="dot red"></span> Error: ${escHtml(e.message)}`;
+    btn.disabled = false;
+    document.getElementById('archiveBtnText').textContent = '⬇ Recover Videos';
     if (eventSource) eventSource.close();
   }
 }
@@ -1042,6 +1118,37 @@ function handleSseMessage(e) {
     document.getElementById('recoverBtn').disabled = false;
     document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
     document.getElementById('csvBtn').disabled = false;
+    document.getElementById('archiveBtn').disabled = false;
+    if (eventSource) eventSource.close();
+  }
+
+  // ── Archive video-recovery events ──
+  if (msg.type === 'rdl_start') {
+    const s = document.getElementById('archiveStatus');
+    s.style.display = 'flex';
+    s.innerHTML = `<span class="dot amber"></span> Recovering videos from the Internet Archive... 0/${msg.total}`;
+  }
+
+  if (msg.type === 'rdl_item_start') {
+    setRdlBadge(msg.id, 'working', 'trying');
+    const s = document.getElementById('archiveStatus');
+    s.style.display = 'flex';
+    s.innerHTML = `<span class="dot amber"></span> Recovering videos... ${msg.index}/${msg.total}` +
+      (msg.title ? ` — ${escHtml(msg.title)}` : ` — ${escHtml(msg.id)}`);
+  }
+
+  if (msg.type === 'rdl_item_done') {
+    const labels = { video: 'video ✓', thumbnail: 'thumbnail', metadata: 'metadata', none: 'not found' };
+    setRdlBadge(msg.id, msg.outcome, labels[msg.outcome] || msg.outcome);
+  }
+
+  if (msg.type === 'rdl_complete') {
+    const got = (msg.results || []).filter(r => r.outcome === 'video').length;
+    const total = (msg.results || []).length;
+    document.getElementById('archiveStatus').innerHTML =
+      `<span class="dot green"></span> Done — ${got}/${total} full video${total !== 1 ? 's' : ''} recovered. Saved to: ${escHtml(msg.outputDir)}`;
+    document.getElementById('archiveBtn').disabled = false;
+    document.getElementById('archiveBtnText').textContent = '⬇ Recover Videos';
     if (eventSource) eventSource.close();
   }
 

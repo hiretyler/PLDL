@@ -18,6 +18,7 @@ const os = require('os');
 
 const { getPlaylist } = require('./lib/playlist');
 const { recoverTitles } = require('./lib/recover');
+const { recoverMedia } = require('./lib/archive');
 
 const app = express();
 const PORT = 3001;
@@ -144,6 +145,63 @@ app.post('/api/recover', (req, res) => {
       console.error('Title recovery failed:', err);
       broadcast({ type: 'recover_error', message: err.message });
     });
+});
+
+// ─── Download Recovered (from Internet Archive) ─────────────────────────────────
+
+app.post('/api/download-recovered', async (req, res) => {
+  const { videos, outputDir } = req.body;
+
+  if (!Array.isArray(videos) || videos.length === 0) {
+    return res.status(400).json({ error: 'videos must be a non-empty array' });
+  }
+
+  // Recovered files land in a "Recovered" subfolder of the playlist output dir.
+  const baseDir = outputDir
+    ? outputDir
+    : path.join(os.homedir(), 'Downloads', 'YouTube Playlists');
+  const finalDir = path.join(baseDir, 'Recovered');
+  if (!fs.existsSync(finalDir)) {
+    fs.mkdirSync(finalDir, { recursive: true });
+  }
+
+  console.log(`Starting archive recovery for ${videos.length} video(s) -> ${finalDir}`);
+  res.json({ status: 'started', count: videos.length, outputDir: finalDir });
+
+  broadcast({ type: 'rdl_start', total: videos.length, outputDir: finalDir });
+
+  (async () => {
+    const results = [];
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      const index = i + 1;
+      // "01 - Title" style stem; fall back to the video id when no title.
+      const indexLabel = (v.index != null ? v.index : index).toString().padStart(2, '0');
+      const stem = cleanFilename(`${indexLabel} - ${v.title || v.id}`);
+
+      broadcast({ type: 'rdl_item_start', index, total: videos.length, id: v.id, title: v.title || null });
+      try {
+        const result = await recoverMedia(v, finalDir, stem);
+        results.push(result);
+        broadcast({
+          type: 'rdl_item_done',
+          index,
+          total: videos.length,
+          id: v.id,
+          title: result.title,
+          outcome: result.outcome,        // 'video' | 'thumbnail' | 'metadata' | 'none'
+          files: result.files,
+        });
+      } catch (err) {
+        console.error(`Archive recovery failed for ${v.id}:`, err);
+        results.push({ id: v.id, title: v.title || null, outcome: 'none', files: [], error: err.message });
+        broadcast({ type: 'rdl_item_done', index, total: videos.length, id: v.id, title: v.title || null, outcome: 'none', error: err.message });
+      }
+    }
+    const found = results.filter((r) => r.outcome === 'video').length;
+    broadcast({ type: 'rdl_complete', outputDir: finalDir, results, videoCount: found });
+    console.log(`Archive recovery complete: ${found}/${results.length} full videos recovered`);
+  })();
 });
 
 // ─── Download ─────────────────────────────────────────────────────────────────
@@ -282,6 +340,7 @@ app.get('/api/health', (req, res) => {
   const libs = {
     playlist: typeof getPlaylist === 'function',
     recover: typeof recoverTitles === 'function',
+    archive: typeof recoverMedia === 'function',
   };
   exec('yt-dlp --version', (err, stdout) => {
     res.json({

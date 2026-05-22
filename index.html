@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PLDL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;500;600;700;900&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0c0e;
+    --surface:  #141416;
+    --surface2: #1c1c20;
+    --border:   #2a2a30;
+    --amber:    #f59e0b;
+    --amber-dim:#7a4e06;
+    --green:    #22c55e;
+    --red:      #ef4444;
+    --blue:     #3b82f6;
+    --text:     #e8e8ec;
+    --muted:    #6b6b78;
+    --mono:     'Space Mono', monospace;
+    --sans:     'Barlow', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── GRAIN ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    width: 100%;
+    max-width: 900px;
+    padding: 48px 24px 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    border: 1px solid var(--amber-dim);
+    padding: 4px 8px;
+    line-height: 1;
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-weight: 900;
+    font-size: 36px;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  h1 span { color: var(--amber); }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+    margin-left: auto;
+    padding-bottom: 4px;
+  }
+
+  /* ── MAIN ── */
+  .main {
+    width: 100%;
+    max-width: 900px;
+    padding: 32px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── INPUT AREA ── */
+  .url-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .url-input:focus { border-color: var(--amber); }
+  .url-input::placeholder { color: var(--muted); }
+
+  .btn {
+    background: var(--amber);
+    color: #000;
+    border: none;
+    padding: 12px 24px;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn.outline {
+    background: transparent;
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+  }
+
+  .btn.outline:hover { border-color: var(--amber); }
+
+  .btn.green {
+    background: var(--green);
+  }
+
+  /* ── STATUS LINE ── */
+  .status-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding: 10px 0 0;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .dot.amber { background: var(--amber); animation: pulse 1.5s infinite; }
+  .dot.green { background: var(--green); }
+  .dot.red   { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── QUALITY ROW ── */
+  .quality-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .quality-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .quality-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .quality-btn.active { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 700; }
+
+  /* ── PLAYLIST INFO ── */
+  .playlist-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .playlist-title {
+    font-weight: 700;
+    font-size: 17px;
+    flex: 1;
+  }
+
+  .playlist-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 10px;
+    border: 1px solid var(--amber-dim);
+  }
+
+  /* ── VIDEO LIST ── */
+  .video-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .video-list::-webkit-scrollbar { width: 4px; }
+  .video-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .video-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-left: 2px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .video-item.active { border-left-color: var(--amber); background: rgba(245,158,11,0.04); }
+  .video-item.done   { border-left-color: var(--green); }
+  .video-item.error  { border-left-color: var(--red); }
+
+  .video-index {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    width: 24px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .video-title {
+    font-size: 13px;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+
+  .video-title.clean {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .video-duration {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .video-status {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  /* progress fill behind item */
+  .video-progress-bg {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: rgba(245,158,11,0.07);
+    transition: width 0.3s ease;
+    pointer-events: none;
+  }
+
+  /* ── DOWNLOAD PROGRESS ── */
+  .progress-card { }
+
+  .progress-main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .progress-file {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .progress-stats {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    white-space: nowrap;
+  }
+
+  .progress-bar-track {
+    height: 3px;
+    background: var(--surface2);
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--amber);
+    transition: width 0.3s ease;
+  }
+
+  .progress-bar-fill.done { background: var(--green); }
+
+  .progress-sub {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .progress-sub span { color: var(--text); }
+
+  /* ── COMPLETE STATE ── */
+  .complete-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+  }
+
+  .complete-icon { font-size: 28px; }
+
+  .complete-text h3 {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--green);
+    margin-bottom: 3px;
+  }
+
+  .complete-text p {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── SETUP HELP ── */
+  .setup-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--bg);
+    background: var(--amber);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  .step-content { flex: 1; }
+
+  .step-content p {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .step-content code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    background: rgba(245,158,11,0.08);
+    padding: 3px 8px;
+    border: 1px solid var(--amber-dim);
+    display: inline-block;
+    user-select: all;
+    cursor: text;
+  }
+
+  .backend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 4px 10px;
+    border: 1px solid;
+  }
+
+  .backend-badge.connected { color: var(--green); border-color: rgba(34,197,94,0.3); }
+  .backend-badge.disconnected { color: var(--red); border-color: rgba(239,68,68,0.3); }
+  .backend-badge.checking { color: var(--amber); border-color: var(--amber-dim); }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--amber-dim);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ANIMATIONS ── */
+  .fade-in {
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── LOG ── */
+  .log-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    max-height: 100px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-line { line-height: 1.6; }
+  .log-line.hl { color: var(--amber); }
+  .log-line.success { color: var(--green); }
+  .log-line.err { color: var(--red); }
+
+  /* ── UNAVAILABLE VIDEOS ── */
+  .video-item.unavailable {
+    border-left-color: var(--blue);
+    opacity: 0.85;
+  }
+
+  .video-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .video-id a { color: var(--blue); text-decoration: none; }
+  .video-id a:hover { text-decoration: underline; }
+
+  .recovered-title {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .recovered-title.empty { color: var(--muted); font-style: italic; }
+
+  .wayback-link {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--blue);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .wayback-link:hover { text-decoration: underline; }
+
+  .avail-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 7px;
+    border: 1px solid;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .avail-badge.deleted     { color: var(--red);   border-color: rgba(239,68,68,0.4); }
+  .avail-badge.private     { color: var(--amber); border-color: var(--amber-dim); }
+  .avail-badge.unlisted    { color: var(--amber); border-color: var(--amber-dim); }
+  .avail-badge.unavailable { color: var(--muted); border-color: var(--border); }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">PLDL</div>
+  <h1>PLAY<span>LIST</span> DOWN<span>LOADER</span></h1>
+  <div class="subtitle" id="backendBadge">
+    <span class="backend-badge checking"><span class="dot amber"></span>CHECKING BACKEND...</span>
+  </div>
+</header>
+
+<main class="main" id="app">
+
+  <!-- URL INPUT -->
+  <div class="card fade-in">
+    <div class="card-label">Playlist URL</div>
+    <div class="url-row">
+      <input type="text" class="url-input" id="urlInput"
+        placeholder="https://youtube.com/playlist?list=PLxxxxxxxxxxxxxxxx"
+        spellcheck="false" autocomplete="off" />
+      <button class="btn" id="analyzeBtn" onclick="analyzePlaylist()">
+        <span id="analyzeBtnText">Analyze</span>
+      </button>
+    </div>
+    <div class="status-line" id="urlStatus" style="display:none"></div>
+  </div>
+
+  <!-- QUALITY SELECTOR (hidden until playlist loaded) -->
+  <div class="card fade-in" id="qualityCard" style="display:none">
+    <div class="card-label">Quality</div>
+    <div class="quality-row" id="qualityRow">
+      <button class="quality-btn active" data-q="best" onclick="setQuality('best')">Best Available</button>
+      <button class="quality-btn" data-q="1080p" onclick="setQuality('1080p')">1080p</button>
+      <button class="quality-btn" data-q="720p" onclick="setQuality('720p')">720p</button>
+      <button class="quality-btn" data-q="480p" onclick="setQuality('480p')">480p</button>
+      <button class="quality-btn" data-q="audio" onclick="setQuality('audio')">Audio Only</button>
+    </div>
+  </div>
+
+  <!-- PLAYLIST INFO (hidden until loaded) -->
+  <div class="card fade-in" id="playlistCard" style="display:none">
+    <div class="card-label">Playlist</div>
+    <div class="playlist-meta">
+      <div class="playlist-title" id="playlistTitle">—</div>
+      <div class="playlist-count" id="playlistCount">0 videos</div>
+    </div>
+    <div class="video-list" id="videoList"></div>
+    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn outline" id="clearBtn" onclick="clearAll()">Clear</button>
+      <button class="btn green" id="downloadBtn" onclick="startDownload()">
+        ▶ Download All
+      </button>
+    </div>
+  </div>
+
+  <!-- UNAVAILABLE VIDEOS (hidden unless any are unavailable) -->
+  <div class="card fade-in" id="unavailableCard" style="display:none">
+    <div class="card-label">Unavailable Videos</div>
+    <div class="playlist-meta">
+      <div class="playlist-title" style="font-size:14px;">Deleted, private, or removed from this playlist</div>
+      <div class="playlist-count" id="unavailableCount">0 videos</div>
+    </div>
+    <div class="video-list" id="unavailableList" style="max-height:240px;"></div>
+    <div class="status-line" id="recoverStatus" style="display:none"></div>
+    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn outline" id="recoverBtn" onclick="recoverTitles()">
+        <span id="recoverBtnText">⚡ Recover Titles</span>
+      </button>
+      <button class="btn outline" id="csvBtn" onclick="downloadCsv()" disabled>⬇ Download CSV</button>
+    </div>
+  </div>
+
+  <!-- DOWNLOAD PROGRESS (hidden until downloading) -->
+  <div class="card fade-in progress-card" id="progressCard" style="display:none">
+    <div class="card-label">Progress</div>
+    <div class="progress-main">
+      <div class="progress-file" id="currentFile">Waiting...</div>
+      <div class="progress-stats" id="progressStats">—</div>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="progress-sub">
+      Speed: <span id="dlSpeed">—</span> &nbsp;|&nbsp; ETA: <span id="dlEta">—</span> &nbsp;|&nbsp; File: <span id="dlIndex">0</span> / <span id="dlTotal">0</span>
+    </div>
+    <div class="log-area" id="logArea" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- COMPLETE BANNER (hidden until done) -->
+  <div id="completeBanner" style="display:none" class="fade-in">
+    <div class="complete-banner">
+      <div class="complete-icon">✓</div>
+      <div class="complete-text">
+        <h3>Download Complete</h3>
+        <p id="completeDir">Files saved to ~/Downloads/YouTube Playlists</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETUP GUIDE -->
+  <div class="card fade-in" id="setupCard">
+    <div class="card-label">Setup Guide</div>
+    <div class="setup-steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <p>Download the <strong>server.js</strong> file from Claude, then install dependencies:</p>
+          <code>npm install express cors</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <p>Install <strong>yt-dlp</strong> (the YouTube downloader engine):</p>
+          <code>brew install yt-dlp</code> &nbsp; or &nbsp; <code>pip install yt-dlp</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <p>Install <strong>ffmpeg</strong> (for merging video + audio streams):</p>
+          <code>brew install ffmpeg</code> &nbsp; or visit <code>ffmpeg.org</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <p>Start the backend server:</p>
+          <code>node server.js</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <p>Paste a YouTube playlist URL above and click <strong>Analyze</strong>.</p>
+          <p style="margin-top:4px; font-size:12px; color: var(--muted);">Downloads save to <code>~/Downloads/YouTube Playlists/</code></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = 'http://localhost:3001';
+
+let playlist = null;
+let selectedQuality = 'best';
+let eventSource = null;
+let videoStatuses = {};
+let availableVideos = [];     // downloadable videos (available === true)
+let unavailableVideos = [];   // recovery candidates (available === false)
+let recoveryDone = false;     // becomes true once recovery completes (gates CSV)
+
+// ── Backend health check ───────────────────────────────────────────────
+async function checkBackend() {
+  const badge = document.getElementById('backendBadge');
+  try {
+    const r = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(3000) });
+    const d = await r.json();
+    badge.innerHTML = `<span class="backend-badge connected"><span class="dot green"></span>BACKEND CONNECTED · yt-dlp ${d.ytdlp}</span>`;
+  } catch {
+    badge.innerHTML = `<span class="backend-badge disconnected"><span class="dot red"></span>BACKEND OFFLINE</span>`;
+    setTimeout(checkBackend, 5000);
+  }
+}
+
+checkBackend();
+
+// ── Quality selector ──────────────────────────────────────────────────
+function setQuality(q) {
+  selectedQuality = q;
+  document.querySelectorAll('.quality-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.q === q);
+  });
+}
+
+// ── Duration formatter ─────────────────────────────────────────────────
+function fmtDuration(s) {
+  if (!s) return '';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+// ── Analyze playlist ──────────────────────────────────────────────────
+async function analyzePlaylist() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  const status = document.getElementById('urlStatus');
+  document.getElementById('analyzeBtnText').innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  status.style.display = 'flex';
+  status.innerHTML = `<span class="dot amber"></span> Fetching playlist info...`;
+
+  try {
+    const r = await fetch(`${API}/api/playlist-info?url=${encodeURIComponent(url)}`);
+    const data = await r.json();
+
+    if (!r.ok) throw new Error(data.error || 'Failed to fetch playlist');
+
+    playlist = data;
+
+    // Split available (downloadable) from unavailable (recovery candidates).
+    availableVideos = data.videos.filter(v => v.available);
+    unavailableVideos = data.videos.filter(v => !v.available);
+    recoveryDone = false;
+
+    const availCount = (typeof data.availableCount === 'number') ? data.availableCount : availableVideos.length;
+    const unavailCount = (typeof data.unavailableCount === 'number') ? data.unavailableCount : unavailableVideos.length;
+
+    videoStatuses = {};
+    availableVideos.forEach(v => videoStatuses[v.index] = 'pending');
+
+    // Populate playlist card (only available videos are downloadable)
+    document.getElementById('playlistTitle').textContent = data.title;
+    document.getElementById('playlistCount').textContent = `${availCount} video${availCount !== 1 ? 's' : ''}`;
+    document.getElementById('dlTotal').textContent = availCount;
+
+    const list = document.getElementById('videoList');
+    list.innerHTML = availableVideos.map(v => `
+      <div class="video-item" id="vi-${v.index}">
+        <div class="video-progress-bg" id="vp-${v.index}" style="width:0%"></div>
+        <div class="video-index">${String(v.index).padStart(2,'0')}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="video-title">${escHtml(v.title)}</div>
+          <div class="video-title clean">${escHtml(v.cleanTitle)}.mp4</div>
+        </div>
+        <div class="video-duration">${fmtDuration(v.duration)}</div>
+        <div class="video-status" id="vs-${v.index}">·</div>
+      </div>
+    `).join('');
+
+    document.getElementById('playlistCard').style.display = 'block';
+    document.getElementById('qualityCard').style.display = 'block';
+
+    renderUnavailable(unavailCount);
+
+    let loadedMsg = `Loaded ${availCount} video${availCount !== 1 ? 's' : ''} — "${escHtml(data.title)}"`;
+    if (unavailCount > 0) loadedMsg += ` · ${unavailCount} unavailable`;
+    status.innerHTML = `<span class="dot green"></span> ${loadedMsg}`;
+  } catch (e) {
+    status.innerHTML = `<span class="dot red"></span> Error: ${escHtml(e.message)}`;
+  }
+
+  btn.disabled = false;
+  document.getElementById('analyzeBtnText').textContent = 'Analyze';
+}
+
+// ── Unavailable videos & title recovery ───────────────────────────────
+function renderUnavailable(count) {
+  const card = document.getElementById('unavailableCard');
+  const recStatus = document.getElementById('recoverStatus');
+  recStatus.style.display = 'none';
+  recStatus.innerHTML = '';
+  document.getElementById('csvBtn').disabled = true;
+  document.getElementById('recoverBtn').disabled = false;
+  document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+
+  if (!unavailableVideos.length) {
+    card.style.display = 'none';
+    return;
+  }
+
+  document.getElementById('unavailableCount').textContent = `${count} video${count !== 1 ? 's' : ''}`;
+
+  const list = document.getElementById('unavailableList');
+  list.innerHTML = unavailableVideos.map(v => {
+    const avail = v.availability || 'unavailable';
+    const watchUrl = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    return `
+      <div class="video-item unavailable" id="uvi-${v.id}">
+        <div class="video-index">${v.index != null ? String(v.index).padStart(2,'0') : '··'}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="recovered-title empty" id="ut-${v.id}">Title not recovered yet</div>
+          <div class="video-id">
+            <a href="${escHtml(watchUrl)}" target="_blank" rel="noopener">${escHtml(v.id)}</a>
+          </div>
+        </div>
+        <a class="wayback-link" id="uw-${v.id}" style="display:none" target="_blank" rel="noopener">🔍 Wayback</a>
+        <span class="avail-badge ${escHtml(avail)}">${escHtml(avail)}</span>
+      </div>`;
+  }).join('');
+
+  card.style.display = 'block';
+}
+
+function applyRecovered(videoId, title, waybackSnapshot) {
+  const titleEl = document.getElementById(`ut-${videoId}`);
+  if (titleEl) {
+    if (title) {
+      titleEl.textContent = title;
+      titleEl.classList.remove('empty');
+    } else {
+      titleEl.textContent = 'No title found';
+      titleEl.classList.add('empty');
+    }
+  }
+  if (waybackSnapshot) {
+    const w = document.getElementById(`uw-${videoId}`);
+    if (w) { w.href = waybackSnapshot; w.style.display = 'inline'; }
+  }
+  // Stash recovered data on the model for CSV export.
+  const v = unavailableVideos.find(x => x.id === videoId);
+  if (v) {
+    v.recoveredTitle = (title != null) ? title : '';
+    v.waybackSnapshot = waybackSnapshot || '';
+  }
+}
+
+async function recoverTitles() {
+  if (!unavailableVideos.length) return;
+  const ids = unavailableVideos.map(v => v.id);
+
+  const btn = document.getElementById('recoverBtn');
+  const recStatus = document.getElementById('recoverStatus');
+  btn.disabled = true;
+  document.getElementById('recoverBtnText').innerHTML = '<span class="spinner"></span>';
+  recStatus.style.display = 'flex';
+  recStatus.innerHTML = `<span class="dot amber"></span> Recovering titles from the Wayback Machine...`;
+
+  // Reuse the single shared EventSource for recover_* events.
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource(`${API}/api/events`);
+  eventSource.onmessage = handleSseMessage;
+
+  try {
+    const r = await fetch(`${API}/api/recover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoIds: ids }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Recovery request failed');
+  } catch (e) {
+    recStatus.innerHTML = `<span class="dot red"></span> Error: ${escHtml(e.message)}`;
+    btn.disabled = false;
+    document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+    if (eventSource) eventSource.close();
+  }
+}
+
+// ── CSV export ─────────────────────────────────────────────────────────
+function csvField(value) {
+  const s = String(value == null ? '' : value);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadCsv() {
+  const header = 'video_id,title,url,wayback_snapshot';
+  const rows = unavailableVideos.map(v => {
+    const url = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    return [
+      csvField(v.id),
+      csvField(v.recoveredTitle || ''),
+      csvField(url),
+      csvField(v.waybackSnapshot || ''),
+    ].join(',');
+  });
+  const csv = [header, ...rows].join('\r\n') + '\r\n';
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const dlUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = dlUrl;
+  a.download = `PLDL_unavailable_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(dlUrl);
+}
+
+// ── Shared SSE handling (download + recover) ───────────────────────────
+let currentIndex = 0;
+
+function addLog(text, cls = '') {
+  const log = document.getElementById('logArea');
+  if (!log) return;
+  const d = document.createElement('div');
+  d.className = `log-line ${cls}`;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  if (log.children.length > 80) log.removeChild(log.firstChild);
+}
+
+function handleSseMessage(e) {
+  const msg = JSON.parse(e.data);
+
+  // ── Download events ──
+  if (msg.type === 'file_start') {
+    currentIndex = msg.index;
+    document.getElementById('currentFile').textContent = msg.filename;
+    document.getElementById('dlIndex').textContent = msg.index;
+    document.getElementById('progressBar').className = 'progress-bar-fill';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressStats').textContent = '0%';
+
+    if (msg.index > 1) markVideo(msg.index - 1, 'done');
+    markVideo(msg.index, 'active');
+    addLog(`▶ Downloading [${msg.index}]: ${msg.filename}`, 'hl');
+  }
+
+  if (msg.type === 'progress') {
+    const pct = Math.min(msg.percent || 0, 100);
+    document.getElementById('progressBar').style.width = `${pct}%`;
+    document.getElementById('progressStats').textContent = `${pct.toFixed(1)}%`;
+    document.getElementById('dlSpeed').textContent = msg.speed || '—';
+    document.getElementById('dlEta').textContent = msg.eta || '—';
+    setVideoProgress(msg.index || currentIndex, pct);
+  }
+
+  if (msg.type === 'merging') {
+    addLog(`  ⚙ Merging streams for: ${msg.filename}`);
+  }
+
+  if (msg.type === 'file_done') {
+    markVideo(msg.index || currentIndex, 'done');
+    if (msg.cached) addLog(`  ✓ Already downloaded: ${msg.filename}`, 'success');
+  }
+
+  if (msg.type === 'error') {
+    addLog(`✗ ${msg.message}`, 'err');
+  }
+
+  if (msg.type === 'complete') {
+    eventSource.close();
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressBar').className = 'progress-bar-fill done';
+    document.getElementById('progressStats').textContent = '100%';
+
+    availableVideos.forEach(v => markVideo(v.index, 'done'));
+
+    document.getElementById('completeBanner').style.display = 'block';
+    document.getElementById('completeDir').textContent = `Files saved to: ${msg.outputDir}`;
+    addLog(`✓ All downloads complete!`, 'success');
+
+    checkBackend();
+  }
+
+  // ── Recovery events ──
+  if (msg.type === 'recover_progress') {
+    const recStatus = document.getElementById('recoverStatus');
+    const done = msg.done || 0;
+    const total = msg.total || unavailableVideos.length;
+    let label = `Recovering titles... ${done}/${total}`;
+    if (msg.current && msg.current.videoId) {
+      // Incrementally fill in the row as each title resolves.
+      applyRecovered(msg.current.videoId, msg.current.title, null);
+      if (msg.current.title) label += ` — ${msg.current.title}`;
+    }
+    recStatus.style.display = 'flex';
+    recStatus.innerHTML = `<span class="dot amber"></span> ${escHtml(label)}`;
+  }
+
+  if (msg.type === 'recover_complete') {
+    (msg.results || []).forEach(r => applyRecovered(r.videoId, r.title, r.waybackSnapshot));
+    recoveryDone = true;
+    const recovered = (msg.results || []).filter(r => r.title).length;
+    document.getElementById('recoverStatus').innerHTML =
+      `<span class="dot green"></span> Recovered ${recovered} of ${unavailableVideos.length} title${unavailableVideos.length !== 1 ? 's' : ''}`;
+    document.getElementById('recoverBtn').disabled = false;
+    document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+    document.getElementById('csvBtn').disabled = false;
+    if (eventSource) eventSource.close();
+  }
+
+  if (msg.type === 'recover_error') {
+    document.getElementById('recoverStatus').innerHTML =
+      `<span class="dot red"></span> Error: ${escHtml(msg.message || 'recovery failed')}`;
+    document.getElementById('recoverBtn').disabled = false;
+    document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+    if (eventSource) eventSource.close();
+  }
+}
+
+// ── Start download ────────────────────────────────────────────────────
+async function startDownload() {
+  if (!playlist) return;
+
+  const url = document.getElementById('urlInput').value.trim();
+
+  // Setup SSE — single shared connection handles download + recover events
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource(`${API}/api/events`);
+  eventSource.onmessage = handleSseMessage;
+
+  // Start progress card
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('completeBanner').style.display = 'none';
+  document.getElementById('downloadBtn').disabled = true;
+
+  // Call download endpoint
+  try {
+    await fetch(`${API}/api/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, quality: selectedQuality }),
+    });
+  } catch (e) {
+    document.getElementById('logArea').innerHTML += `<div class="log-line err">Failed to reach backend: ${e.message}</div>`;
+  }
+}
+
+function markVideo(index, status) {
+  const el = document.getElementById(`vi-${index}`);
+  const st = document.getElementById(`vs-${index}`);
+  if (!el) return;
+  el.classList.remove('active', 'done', 'error');
+  if (status === 'active') {
+    el.classList.add('active');
+    if (st) st.textContent = '▶';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (status === 'done') {
+    el.classList.add('done');
+    if (st) st.textContent = '✓';
+    const vp = document.getElementById(`vp-${index}`);
+    if (vp) { vp.style.width = '100%'; vp.style.background = 'rgba(34,197,94,0.07)'; }
+  } else if (status === 'error') {
+    el.classList.add('error');
+    if (st) st.textContent = '✗';
+  }
+}
+
+function setVideoProgress(index, pct) {
+  const vp = document.getElementById(`vp-${index}`);
+  if (vp) vp.style.width = `${pct}%`;
+}
+
+function clearAll() {
+  playlist = null;
+  videoStatuses = {};
+  availableVideos = [];
+  unavailableVideos = [];
+  recoveryDone = false;
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  document.getElementById('urlInput').value = '';
+  document.getElementById('playlistCard').style.display = 'none';
+  document.getElementById('qualityCard').style.display = 'none';
+  document.getElementById('unavailableCard').style.display = 'none';
+  document.getElementById('progressCard').style.display = 'none';
+  document.getElementById('completeBanner').style.display = 'none';
+  document.getElementById('urlStatus').style.display = 'none';
+  document.getElementById('downloadBtn').disabled = false;
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+// Enter key on URL input
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyzePlaylist();
+});
+</script>
+</body>
+</html>

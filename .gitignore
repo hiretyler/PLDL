@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Downloaded media / output
+Downloads/
+output/
+*.mp4
+*.m4a
+*.webm
+*.mkv
+
+# CSV output
+*.csv
+
+# Environment
+.env
+.env.*
+
+# OS cruft
+.DS_Store
+Thumbs.db

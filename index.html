@@ -1016,14 +1016,17 @@ function csvField(value) {
 }
 
 function downloadCsv() {
-  const header = 'video_id,title,url,wayback_snapshot';
+  const header = 'video_id,title,url,wayback_snapshot,search_url';
   const rows = unavailableVideos.map(v => {
     const url = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    // Same Google query as the per-row "🔎 Search" link.
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"youtube.com/watch?v=${v.id}"`)}`;
     return [
       csvField(v.id),
       csvField(v.recoveredTitle || ''),
       csvField(url),
       csvField(v.waybackSnapshot || ''),
+      csvField(searchUrl),
     ].join(',');
   });
   const csv = [header, ...rows].join('\r\n') + '\r\n';

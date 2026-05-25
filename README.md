@@ -20,8 +20,10 @@ You saved a YouTube playlist years ago. Some videos are now deleted or private. 
 - Quality selection: best, 1080p, 720p, 480p, audio-only
 - Live download progress via Server-Sent Events (per-file progress bar, speed, ETA)
 - Wayback Machine title recovery with live progress for unavailable videos
+- Deletion window estimation for unavailable videos via Wayback Machine snapshot history (bracketing when the video likely disappeared)
 - Best-effort video recovery for unavailable videos from the Internet Archive (yt-dlp's `web.archive:youtube` extractor), falling back to thumbnail + metadata when the video stream was never archived
-- CSV export of recovered titles
+- Investigative link-outs for unavailable videos (Filmot, Ghostarchive, archive.today, Reddit search)
+- CSV export of recovered titles and investigative links
 
 ---
 
@@ -76,6 +78,8 @@ server.js (Express, port 3001)
     |                        available vs unavailable by placeholder title pattern
     |-- lib/recover.js   -- queries Wayback CDX API, fetches snapshots,
     |                        extracts og:title / <title> from archived HTML
+    |-- lib/timeline.js  -- queries Wayback CDX snapshot history; brackets
+    |                        deletion window via lastSeenAlive and firstSeenGone
     |-- lib/archive.js   -- shells to yt-dlp `ytarchive:<id>` to pull archived
                             videos from the Internet Archive; falls back to
                             thumbnail + metadata sidecar

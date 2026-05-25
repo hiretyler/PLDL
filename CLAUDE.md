@@ -27,13 +27,15 @@ There is no build, lint, or test setup.
   - `GET /api/events` - SSE channel. All async progress (download and recovery) flows through here. Clients tracked in `sseClients` Map; `broadcast()` fans events to all connected clients.
   - `GET /api/playlist-info?url=` - calls `getPlaylist()` from `lib/playlist.js`, returns normalized video metadata including `available` and `availability` fields. Unavailable videos have `title: null` (their placeholder title is stripped before returning).
   - `POST /api/download` - `{ url, outputDir, quality }` - spawns `yt-dlp`, responds immediately with `{ status: 'started' }`, then streams progress via SSE. Default output: `~/Downloads/YouTube Playlists/`. `quality` maps to a yt-dlp format selector via `formatMap` (`best`/`1080p`/`720p`/`480p`/`audio`).
-  - `POST /api/recover` - `{ videoIds: string[] }` - calls `recoverTitles()` from `lib/recover.js`, responds immediately with `{ status: 'started' }`, then streams recovery progress via SSE.
+  - `POST /api/recover` - `{ videoIds: string[] }` - runs two sequential passes: title recovery via `recoverTitles()` from `lib/recover.js`, then timeline estimation via `getTimeline()` from `lib/timeline.js`. Responds immediately with `{ status: 'started' }`, then streams recovery progress via SSE. `recover_progress` events include a `phase` field (`'titles'` | `'timeline'`).
   - `POST /api/download-recovered` - `{ videos: [{id,index,title,url,waybackSnapshot,availability}], outputDir? }` - best-effort recovery of unavailable videos from the Internet Archive via `recoverMedia()` in `lib/archive.js`. Responds `{ status: 'started' }`, processes videos sequentially, streams progress via SSE. Saves to a `Recovered/` subfolder of the output dir.
   - `GET /api/health` - reports yt-dlp version and whether lib modules loaded.
 
 - **`lib/playlist.js`** - Enumerates every video in a YouTube playlist via `yt-dlp --flat-playlist -J`. Returns available and unavailable videos in a single array with `available: boolean` and `availability: 'public'|'private'|'deleted'|'unlisted'|'unavailable'` per entry. Availability is classified from the placeholder title (`[Private video]`, `[Deleted video]`, `[Unavailable video]`) because the per-entry `availability` field is null in flat mode for all entries.
 
 - **`lib/recover.js`** - Wayback Machine title recovery. For each video ID: queries the Wayback CDX API for the earliest 200-status snapshot, fetches it with the `id_` raw-content modifier (no toolbar rewrites), and extracts the title (prefers `og:title`, falls back to `<title>` with " - YouTube" stripped). Uses Node's global `fetch` (Node 18+). No npm dependencies. Concurrency: 3 simultaneous requests, 500ms delay between starts.
+
+- **`lib/timeline.js`** - Wayback Machine snapshot-history bracketing. For each video ID: queries Wayback CDX for the full snapshot history, identifies `lastSeenAlive` (latest snapshot returning HTTP 200) and `firstSeenGone` (earliest 404/410 or later status after that), thereby bracketing the deletion window. Best-effort only - imperfect because some deleted YouTube pages still return HTTP 200, and archive.org must have crawled the page around its deletion. (The four investigative link-outs - Filmot, Ghostarchive, archive.today, Reddit search - are built client-side in `index.html` from the video ID, not here.)
 
 - **`index.html`** - Single-page frontend. Vanilla JS, inline CSS, no framework, no bundler. Hardcodes backend at `const API = 'http://localhost:3001'`. Opens an `EventSource` to `/api/events` for live progress on both download and recovery.
 
@@ -53,8 +55,8 @@ Download events (from `POST /api/download`):
 - `complete` - `{ code, outputDir, success }`
 
 Recovery events (from `POST /api/recover`):
-- `recover_progress` - `{ done, total, current: { videoId, title } }`
-- `recover_complete` - `{ results }` - full array of `{ videoId, title, url, waybackSnapshot }`
+- `recover_progress` - `{ done, total, phase, current: { videoId, title } }` - `phase` is `'titles'` | `'timeline'`
+- `recover_complete` - `{ results }` - full array of `{ videoId, title, url, waybackSnapshot, lastSeenAlive, firstSeenGone, snapshotCount }`
 - `recover_error` - `{ message }`
 
 Video-recovery events (from `POST /api/download-recovered`):
@@ -72,3 +74,5 @@ Video-recovery events (from `POST /api/download-recovered`):
 - **SSE indirection for both download and recovery** - Neither `POST /api/download` nor `POST /api/recover` delivers results in their HTTP responses. Both return `{ status: 'started' }` immediately and push all subsequent updates over `/api/events`. The frontend must open the SSE stream before (or concurrently with) sending the POST, or early events may be missed.
 
 - **Output filenames** - yt-dlp uses the template `%(playlist_index|)s%(playlist_index& - |)s%(title)s.%(ext)s` with `--restrict-filenames`, `--windows-filenames`, and `--trim-filenames 180`. `cleanFilename()` in `server.js` is a separate sanitizer used only for the `cleanTitle` field returned by `/api/playlist-info` - it does not affect what yt-dlp writes to disk.
+
+- **Investigative link services block bots** - Filmot, Ghostarchive, archive.today, and Reddit search all reject bot requests. `lib/timeline.js` builds the links server-side, but they are only suitable for human browser clicks, never pre-fetched by server-side code.

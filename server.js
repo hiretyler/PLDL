@@ -18,6 +18,7 @@ const os = require('os');
 
 const { getPlaylist } = require('./lib/playlist');
 const { recoverTitles } = require('./lib/recover');
+const { getTimelines } = require('./lib/timeline');
 const { recoverMedia } = require('./lib/archive');
 
 const app = express();
@@ -112,7 +113,7 @@ app.get('/api/playlist-info', async (req, res) => {
   }
 });
 
-// ─── Recover Titles ────────────────────────────────────────────────────────────
+// ─── Recover Titles + Deletion Timeline ─────────────────────────────────────────
 
 app.post('/api/recover', (req, res) => {
   const { videoIds } = req.body;
@@ -121,30 +122,68 @@ app.post('/api/recover', (req, res) => {
     return res.status(400).json({ error: 'videoIds must be a non-empty array' });
   }
 
-  console.log(`Starting title recovery for ${videoIds.length} video(s)`);
+  console.log(`Starting recovery (titles + timeline) for ${videoIds.length} video(s)`);
 
   res.json({ status: 'started', count: videoIds.length });
 
-  recoverTitles(videoIds, {
-    concurrency: 3,
-    delayMs: 500,
-    onProgress: ({ done, total, current }) => {
-      broadcast({
-        type: 'recover_progress',
-        done,
-        total,
-        current: { videoId: current.videoId, title: current.title },
-      });
-    },
-  })
-    .then((results) => {
-      broadcast({ type: 'recover_complete', results });
-      console.log(`Title recovery complete: ${results.length} result(s)`);
-    })
-    .catch((err) => {
-      console.error('Title recovery failed:', err);
-      broadcast({ type: 'recover_error', message: err.message });
+  // Two sequential passes (titles, then timeline) to stay polite to archive.org.
+  (async () => {
+    // Pass 1: title recovery.
+    const titleResults = await recoverTitles(videoIds, {
+      concurrency: 3,
+      delayMs: 500,
+      onProgress: ({ done, total, current }) => {
+        broadcast({
+          type: 'recover_progress',
+          phase: 'titles',
+          done,
+          total,
+          current: { videoId: current.videoId, title: current.title },
+        });
+      },
     });
+    console.log(`Title pass complete: ${titleResults.length} result(s)`);
+
+    // Pass 2: deletion-timeline lookup.
+    const timelineResults = await getTimelines(videoIds, {
+      concurrency: 3,
+      delayMs: 500,
+      onProgress: ({ done, total, current }) => {
+        broadcast({
+          type: 'recover_progress',
+          phase: 'timeline',
+          done,
+          total,
+          current: { videoId: current.videoId },
+        });
+      },
+    });
+    console.log(`Timeline pass complete: ${timelineResults.length} result(s)`);
+
+    // Merge both passes by videoId, preserving input order (one object per id).
+    const titleById = new Map(titleResults.map((r) => [r.videoId, r]));
+    const timelineById = new Map(timelineResults.map((r) => [r.videoId, r]));
+
+    const results = videoIds.map((videoId) => {
+      const t = titleById.get(videoId) || {};
+      const w = timelineById.get(videoId) || {};
+      return {
+        videoId,
+        title: t.title ?? null,
+        url: t.url ?? `https://www.youtube.com/watch?v=${videoId}`,
+        waybackSnapshot: t.waybackSnapshot ?? null,
+        lastSeenAlive: w.lastSeenAlive ?? null,
+        firstSeenGone: w.firstSeenGone ?? null,
+        snapshotCount: w.snapshotCount ?? 0,
+      };
+    });
+
+    broadcast({ type: 'recover_complete', results });
+    console.log(`Recovery complete: ${results.length} merged result(s)`);
+  })().catch((err) => {
+    console.error('Recovery failed:', err);
+    broadcast({ type: 'recover_error', message: err.message });
+  });
 });
 
 // ─── Download Recovered (from Internet Archive) ─────────────────────────────────
@@ -340,6 +379,7 @@ app.get('/api/health', (req, res) => {
   const libs = {
     playlist: typeof getPlaylist === 'function',
     recover: typeof recoverTitles === 'function',
+    timeline: typeof getTimelines === 'function',
     archive: typeof recoverMedia === 'function',
   };
   exec('yt-dlp --version', (err, stdout) => {

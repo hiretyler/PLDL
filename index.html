@@ -566,6 +566,38 @@
   }
   .search-link:hover { color: var(--amber); text-decoration: underline; }
 
+  /* secondary "investigate this video" link-outs — same muted feel as .search-link */
+  .ext-link {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .ext-link:hover { color: var(--amber); text-decoration: underline; }
+  /* Filmot is the strongest signal — give it a subtly stronger affordance */
+  .ext-link.primary { color: var(--blue); }
+  .ext-link.primary:hover { color: var(--amber); }
+
+  /* group the investigate links so the row doesn't get crowded */
+  .ext-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* deletion window line under the recovered title */
+  .del-window {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
   .avail-badge {
     font-family: var(--mono);
     font-size: 9px;
@@ -885,17 +917,30 @@ function renderUnavailable(count) {
     // Google search for the quoted watch URL — surfaces blog/forum/reddit
     // mentions for videos too obscure for the Wayback Machine to have crawled.
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"youtube.com/watch?v=${v.id}"`)}`;
+    // Investigative link-outs — all four block bots, so they are browser-click-only.
+    const idEsc = escHtml(v.id);
+    const filmotUrl = `https://filmot.com/video/${idEsc}`;
+    const ghostUrl = `https://ghostarchive.org/varchive/${idEsc}`;
+    const archiveTodayUrl = `https://archive.ph/https://www.youtube.com/watch?v=${idEsc}`;
+    const redditUrl = `https://www.reddit.com/search/?q=url%3Ayoutube.com%2Fwatch%3Fv%3D${idEsc}&sort=new`;
     return `
       <div class="video-item unavailable" id="uvi-${v.id}">
         <div class="video-index">${v.index != null ? String(v.index).padStart(2,'0') : '··'}</div>
         <div style="flex:1; min-width:0;">
           <div class="recovered-title empty" id="ut-${v.id}">Title not recovered yet</div>
+          <div class="del-window" id="utl-${v.id}" style="display:none"></div>
           <div class="video-id">
             <a href="${escHtml(watchUrl)}" target="_blank" rel="noopener">${escHtml(v.id)}</a>
           </div>
         </div>
-        <a class="search-link" href="${escHtml(searchUrl)}" target="_blank" rel="noopener" title="Google the video URL — useful for videos Wayback never crawled">🔎 Search</a>
-        <a class="wayback-link" id="uw-${v.id}" style="display:none" target="_blank" rel="noopener">🔍 Wayback</a>
+        <div class="ext-links">
+          <a class="search-link" href="${escHtml(searchUrl)}" target="_blank" rel="noopener" title="Google the video URL — useful for videos Wayback never crawled">🔎 Search</a>
+          <a class="wayback-link" id="uw-${v.id}" style="display:none" target="_blank" rel="noopener">🔍 Wayback</a>
+          <a class="ext-link primary" href="${filmotUrl}" target="_blank" rel="noopener" title="Filmot — searchable archive of deleted YouTube metadata">Filmot</a>
+          <a class="ext-link" href="${ghostUrl}" target="_blank" rel="noopener" title="Ghostarchive snapshot of this video">Ghost</a>
+          <a class="ext-link" href="${archiveTodayUrl}" target="_blank" rel="noopener" title="archive.today captures of this video page">archive.ph</a>
+          <a class="ext-link" href="${redditUrl}" target="_blank" rel="noopener" title="Reddit posts linking this video">Reddit</a>
+        </div>
         <span class="rdl-badge" id="urd-${v.id}" style="display:none"></span>
         <span class="avail-badge ${escHtml(avail)}">${escHtml(avail)}</span>
       </div>`;
@@ -904,7 +949,7 @@ function renderUnavailable(count) {
   card.style.display = 'block';
 }
 
-function applyRecovered(videoId, title, waybackSnapshot) {
+function applyRecovered(videoId, title, waybackSnapshot, timeline) {
   const titleEl = document.getElementById(`ut-${videoId}`);
   if (titleEl) {
     if (title) {
@@ -924,6 +969,39 @@ function applyRecovered(videoId, title, waybackSnapshot) {
   if (v) {
     v.recoveredTitle = (title != null) ? title : '';
     v.waybackSnapshot = waybackSnapshot || '';
+  }
+  // Apply the Wayback-derived deletion window (arrives with recover_complete).
+  if (timeline) applyTimeline(videoId, timeline);
+}
+
+// Render the deletion window line + stash timeline fields for CSV.
+function applyTimeline(videoId, t) {
+  const lastSeenAlive = (t && t.lastSeenAlive) || null;
+  const firstSeenGone = (t && t.firstSeenGone) || null;
+  const snapshotCount = (t && typeof t.snapshotCount === 'number') ? t.snapshotCount : null;
+
+  const v = unavailableVideos.find(x => x.id === videoId);
+  if (v) {
+    v.lastSeenAlive = lastSeenAlive;
+    v.firstSeenGone = firstSeenGone;
+    v.snapshotCount = snapshotCount;
+  }
+
+  const el = document.getElementById(`utl-${videoId}`);
+  if (!el) return;
+  let label = '';
+  if (lastSeenAlive && firstSeenGone) {
+    label = `🗓 alive ≤ ${lastSeenAlive} · gone ≥ ${firstSeenGone}`;
+  } else if (lastSeenAlive) {
+    label = `🗓 last seen alive ${lastSeenAlive}`;
+  }
+  if (label) {
+    el.textContent = label;
+    el.style.display = 'block';
+  } else {
+    // neither known — hide it (no clutter for videos Wayback never crawled).
+    el.textContent = '';
+    el.style.display = 'none';
   }
 }
 
@@ -1016,17 +1094,28 @@ function csvField(value) {
 }
 
 function downloadCsv() {
-  const header = 'video_id,title,url,wayback_snapshot,search_url';
+  const header = 'video_id,title,url,wayback_snapshot,search_url,filmot_url,ghostarchive_url,archive_today_url,reddit_search_url,last_seen_alive,first_seen_gone';
   const rows = unavailableVideos.map(v => {
     const url = v.url || `https://www.youtube.com/watch?v=${v.id}`;
     // Same Google query as the per-row "🔎 Search" link.
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"youtube.com/watch?v=${v.id}"`)}`;
+    // Build the four investigate URLs the same way as the row links.
+    const filmotUrl = `https://filmot.com/video/${v.id}`;
+    const ghostUrl = `https://ghostarchive.org/varchive/${v.id}`;
+    const archiveTodayUrl = `https://archive.ph/https://www.youtube.com/watch?v=${v.id}`;
+    const redditUrl = `https://www.reddit.com/search/?q=url%3Ayoutube.com%2Fwatch%3Fv%3D${v.id}&sort=new`;
     return [
       csvField(v.id),
       csvField(v.recoveredTitle || ''),
       csvField(url),
       csvField(v.waybackSnapshot || ''),
       csvField(searchUrl),
+      csvField(filmotUrl),
+      csvField(ghostUrl),
+      csvField(archiveTodayUrl),
+      csvField(redditUrl),
+      csvField(v.lastSeenAlive || ''),
+      csvField(v.firstSeenGone || ''),
     ].join(',');
   });
   const csv = [header, ...rows].join('\r\n') + '\r\n';
@@ -1115,18 +1204,26 @@ function handleSseMessage(e) {
     const recStatus = document.getElementById('recoverStatus');
     const done = msg.done || 0;
     const total = msg.total || unavailableVideos.length;
-    let label = `Recovering titles... ${done}/${total}`;
+    // Phase-aware status: 'titles' first, then 'timeline'.
+    const verb = msg.phase === 'timeline' ? 'Checking deletion dates' : 'Recovering titles';
+    let label = `${verb}... ${done}/${total}`;
     if (msg.current && msg.current.videoId) {
-      // Incrementally fill in the row as each title resolves.
-      applyRecovered(msg.current.videoId, msg.current.title, null);
-      if (msg.current.title) label += ` — ${msg.current.title}`;
+      // Title only arrives during the titles phase — keep filling rows then.
+      if (msg.current.title) {
+        applyRecovered(msg.current.videoId, msg.current.title, null);
+        label += ` — ${msg.current.title}`;
+      }
     }
     recStatus.style.display = 'flex';
     recStatus.innerHTML = `<span class="dot amber"></span> ${escHtml(label)}`;
   }
 
   if (msg.type === 'recover_complete') {
-    (msg.results || []).forEach(r => applyRecovered(r.videoId, r.title, r.waybackSnapshot));
+    (msg.results || []).forEach(r => applyRecovered(r.videoId, r.title, r.waybackSnapshot, {
+      lastSeenAlive: r.lastSeenAlive,
+      firstSeenGone: r.firstSeenGone,
+      snapshotCount: r.snapshotCount,
+    }));
     recoveryDone = true;
     const recovered = (msg.results || []).filter(r => r.title).length;
     document.getElementById('recoverStatus').innerHTML =

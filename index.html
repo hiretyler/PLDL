@@ -946,6 +946,10 @@ function renderUnavailable(count) {
       </div>`;
   }).join('');
 
+  // Show "added {date}" right away for rows enriched by the YouTube Data API
+  // (the Wayback window fills in later, on recovery).
+  unavailableVideos.forEach(v => renderTimingLine(v.id));
+
   card.style.display = 'block';
 }
 
@@ -976,30 +980,33 @@ function applyRecovered(videoId, title, waybackSnapshot, timeline) {
 
 // Render the deletion window line + stash timeline fields for CSV.
 function applyTimeline(videoId, t) {
-  const lastSeenAlive = (t && t.lastSeenAlive) || null;
-  const firstSeenGone = (t && t.firstSeenGone) || null;
-  const snapshotCount = (t && typeof t.snapshotCount === 'number') ? t.snapshotCount : null;
-
   const v = unavailableVideos.find(x => x.id === videoId);
   if (v) {
-    v.lastSeenAlive = lastSeenAlive;
-    v.firstSeenGone = firstSeenGone;
-    v.snapshotCount = snapshotCount;
+    v.lastSeenAlive = (t && t.lastSeenAlive) || null;
+    v.firstSeenGone = (t && t.firstSeenGone) || null;
+    v.snapshotCount = (t && typeof t.snapshotCount === 'number') ? t.snapshotCount : null;
   }
+  renderTimingLine(videoId);
+}
 
+// Compose the one "when" line from whatever we know: dateAdded (from the
+// YouTube Data API, known at enumeration) plus the Wayback deletion window
+// (known after recovery). Hidden entirely when nothing is known.
+function renderTimingLine(videoId) {
   const el = document.getElementById(`utl-${videoId}`);
   if (!el) return;
-  let label = '';
-  if (lastSeenAlive && firstSeenGone) {
-    label = `🗓 alive ≤ ${lastSeenAlive} · gone ≥ ${firstSeenGone}`;
-  } else if (lastSeenAlive) {
-    label = `🗓 last seen alive ${lastSeenAlive}`;
+  const v = unavailableVideos.find(x => x.id === videoId) || {};
+  const parts = [];
+  if (v.dateAdded) parts.push(`added ${v.dateAdded}`);
+  if (v.lastSeenAlive && v.firstSeenGone) {
+    parts.push(`alive ≤ ${v.lastSeenAlive} · gone ≥ ${v.firstSeenGone}`);
+  } else if (v.lastSeenAlive) {
+    parts.push(`last seen alive ${v.lastSeenAlive}`);
   }
-  if (label) {
-    el.textContent = label;
+  if (parts.length) {
+    el.textContent = `🗓 ${parts.join(' · ')}`;
     el.style.display = 'block';
   } else {
-    // neither known — hide it (no clutter for videos Wayback never crawled).
     el.textContent = '';
     el.style.display = 'none';
   }
@@ -1094,7 +1101,7 @@ function csvField(value) {
 }
 
 function downloadCsv() {
-  const header = 'video_id,title,url,wayback_snapshot,search_url,filmot_url,ghostarchive_url,archive_today_url,reddit_search_url,last_seen_alive,first_seen_gone';
+  const header = 'video_id,title,url,wayback_snapshot,search_url,filmot_url,ghostarchive_url,archive_today_url,reddit_search_url,last_seen_alive,first_seen_gone,date_added';
   const rows = unavailableVideos.map(v => {
     const url = v.url || `https://www.youtube.com/watch?v=${v.id}`;
     // Same Google query as the per-row "🔎 Search" link.
@@ -1116,6 +1123,7 @@ function downloadCsv() {
       csvField(redditUrl),
       csvField(v.lastSeenAlive || ''),
       csvField(v.firstSeenGone || ''),
+      csvField(v.dateAdded || ''),
     ].join(',');
   });
   const csv = [header, ...rows].join('\r\n') + '\r\n';

@@ -16,10 +16,14 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-const { getPlaylist } = require('./lib/playlist');
+const { getPlaylist, extractPlaylistId } = require('./lib/playlist');
 const { recoverTitles } = require('./lib/recover');
 const { getTimelines } = require('./lib/timeline');
 const { recoverMedia } = require('./lib/archive');
+const { getPlaylistItemDates } = require('./lib/ytdata');
+
+// Load optional .env (e.g. YOUTUBE_API_KEY) without an npm dependency.
+try { process.loadEnvFile(); } catch { /* no .env file — enrichment stays off */ }
 
 const app = express();
 const PORT = 3001;
@@ -82,19 +86,36 @@ app.get('/api/playlist-info', async (req, res) => {
   try {
     const data = await getPlaylist(url);
 
-    const videos = data.videos.map((v) => ({
-      index: v.index,
-      id: v.id,
-      title: v.title,
-      available: v.available,
-      availability: v.availability,
-      url: v.url,
-      duration: v.duration,
-      thumbnail: v.thumbnail,
-      // Backward-compat: sanitized filename stem for the frontend's rendering.
-      // Unavailable videos have a null title until recovered, so fall back to id.
-      cleanTitle: cleanFilename(v.title || v.id || `Video_${v.index}`),
-    }));
+    // Optional enrichment: if a YouTube Data API key is configured, fetch the
+    // date each item was added to the playlist (a reliable "alive on this date"
+    // signal). Best-effort — failures leave dates null and never break listing.
+    let dateMap = new Map();
+    if (process.env.YOUTUBE_API_KEY) {
+      const playlistId = extractPlaylistId(url);
+      if (playlistId) {
+        dateMap = await getPlaylistItemDates(playlistId, process.env.YOUTUBE_API_KEY);
+      }
+    }
+
+    const videos = data.videos.map((v) => {
+      const d = dateMap.get(v.id) || {};
+      return {
+        index: v.index,
+        id: v.id,
+        title: v.title,
+        available: v.available,
+        availability: v.availability,
+        url: v.url,
+        duration: v.duration,
+        thumbnail: v.thumbnail,
+        // Backward-compat: sanitized filename stem for the frontend's rendering.
+        // Unavailable videos have a null title until recovered, so fall back to id.
+        cleanTitle: cleanFilename(v.title || v.id || `Video_${v.index}`),
+        // From YouTube Data API enrichment (null when no key / not found).
+        dateAdded: d.dateAdded || null,
+        videoPublishedAt: d.videoPublishedAt || null,
+      };
+    });
 
     res.json({
       title: data.title,
@@ -381,12 +402,14 @@ app.get('/api/health', (req, res) => {
     recover: typeof recoverTitles === 'function',
     timeline: typeof getTimelines === 'function',
     archive: typeof recoverMedia === 'function',
+    ytdata: typeof getPlaylistItemDates === 'function',
   };
   exec('yt-dlp --version', (err, stdout) => {
     res.json({
       status: 'ok',
       ytdlp: err ? 'not found' : stdout.trim(),
       libs,
+      ytApiKey: !!process.env.YOUTUBE_API_KEY,
     });
   });
 });

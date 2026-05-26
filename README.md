@@ -23,7 +23,8 @@ You saved a YouTube playlist years ago. Some videos are now deleted or private. 
 - Deletion window estimation for unavailable videos via Wayback Machine snapshot history (bracketing when the video likely disappeared)
 - Best-effort video recovery for unavailable videos from the Internet Archive (yt-dlp's `web.archive:youtube` extractor), falling back to thumbnail + metadata when the video stream was never archived
 - Investigative link-outs for unavailable videos (Filmot, Ghostarchive, archive.today, Reddit search)
-- CSV export of recovered titles and investigative links
+- "Date added to playlist" for every video via an optional YouTube Data API key (a reliable "alive on this date" signal, independent of archive.org)
+- CSV export of recovered titles, investigative links, and recovered dates
 
 ---
 
@@ -45,6 +46,16 @@ node server.js
 Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 To confirm yt-dlp is detected: `GET http://localhost:3001/api/health`
+
+### Optional: date-added enrichment (YouTube Data API key)
+
+If you provide a free YouTube Data API v3 key, PLDL also shows when each video was **added to the playlist** - a reliable "it was alive on this date" signal that doesn't depend on archive.org. It's entirely optional; everything else works without it.
+
+```bash
+cp .env.example .env   # then paste your key into .env as YOUTUBE_API_KEY=...
+```
+
+See `.env.example` for the 3-minute setup (Google Cloud Console -> enable "YouTube Data API v3" -> create an API key). The key is read server-side from `.env`, which is git-ignored.
 
 ---
 
@@ -81,8 +92,10 @@ server.js (Express, port 3001)
     |-- lib/timeline.js  -- queries Wayback CDX snapshot history; brackets
     |                        deletion window via lastSeenAlive and firstSeenGone
     |-- lib/archive.js   -- shells to yt-dlp `ytarchive:<id>` to pull archived
-                            videos from the Internet Archive; falls back to
-                            thumbnail + metadata sidecar
+    |                        videos from the Internet Archive; falls back to
+    |                        thumbnail + metadata sidecar
+    |-- lib/ytdata.js    -- optional: YouTube Data API v3 playlistItems lookup
+                            for each item's date-added (needs YOUTUBE_API_KEY)
 ```
 
 The server also serves `index.html` statically, so `node server.js` is the only process you need.

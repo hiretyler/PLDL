@@ -20,6 +20,7 @@ output/
 # Environment
 .env
 .env.*
+!.env.example
 
 # OS cruft
 .DS_Store

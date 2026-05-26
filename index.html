@@ -25,6 +25,25 @@
     --sans:     'Barlow', sans-serif;
   }
 
+  /* Light theme — flips the neutrals, keeps a deeper amber that stays legible
+     both as button fill (black text) and as accent text on white. */
+  html[data-theme="light"] {
+    --bg:       #f4f3ee;
+    --surface:  #ffffff;
+    --surface2: #ebeae3;
+    --border:   #d7d6cc;
+    --amber:    #b45309;
+    --amber-dim:#e3c08a;
+    --green:    #15803d;
+    --red:      #dc2626;
+    --blue:     #2563eb;
+    --text:     #1a1a1e;
+    --muted:    #76767e;
+  }
+
+  html { transition: background-color 0.2s ease; }
+  body { transition: background-color 0.2s ease, color 0.2s ease; }
+
   body {
     background: var(--bg);
     color: var(--text);
@@ -34,6 +53,72 @@
     flex-direction: column;
     align-items: center;
   }
+
+  /* ── THEME TOGGLE ── */
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1;
+    padding: 6px 9px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .theme-toggle:hover { border-color: var(--amber); }
+
+  /* ── DATA MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .modal-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    width: 100%; max-width: 1040px; max-height: 86vh;
+    display: flex; flex-direction: column;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px; border-bottom: 1px solid var(--border);
+  }
+  .modal-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--amber);
+  }
+  .modal-close {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
+  }
+  .modal-close:hover { color: var(--text); }
+  .modal-filter {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 22px 0; flex-wrap: wrap;
+  }
+  .modal-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+  .modal-body { overflow: auto; padding: 14px 22px; flex: 1; }
+  .modal-foot {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 16px 22px; border-top: 1px solid var(--border); flex-wrap: wrap;
+  }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th {
+    text-align: left; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--surface);
+  }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tr:hover td { background: var(--bg); }
+  .data-table .dt-title { color: var(--text); max-width: 320px; }
+  .data-table .dt-mono { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+  .dt-links a { margin-right: 8px; font-family: var(--mono); font-size: 11px; color: var(--blue); text-decoration: none; white-space: nowrap; }
+  .dt-links a:hover { text-decoration: underline; }
+  .avail-badge.available { color: var(--green); border-color: rgba(34,197,94,0.4); }
 
   /* ── GRAIN ── */
   body::before {
@@ -629,6 +714,16 @@
   .avail-badge.unlisted    { color: var(--amber); border-color: var(--amber-dim); }
   .avail-badge.unavailable { color: var(--muted); border-color: var(--border); }
 </style>
+<script>
+  // Set theme before first paint (avoids a dark flash for light-mode users).
+  (function () {
+    try {
+      var t = localStorage.getItem('pldl-theme') ||
+        ((window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body>
 
@@ -638,6 +733,7 @@
   <div class="subtitle" id="backendBadge">
     <span class="backend-badge checking"><span class="dot amber"></span>CHECKING BACKEND...</span>
   </div>
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">☀️</button>
 </header>
 
 <main class="main" id="app">
@@ -677,6 +773,7 @@
     </div>
     <div class="video-list" id="videoList"></div>
     <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn outline" id="viewDataBtn" onclick="openDataModal()">📊 View Data</button>
       <button class="btn outline" id="clearBtn" onclick="clearAll()">Clear</button>
       <button class="btn green" id="downloadBtn" onclick="startDownload()">
         ▶ Download All
@@ -777,6 +874,26 @@
 
 </main>
 
+<!-- DATA VIEWER MODAL -->
+<div class="modal-overlay" id="dataModal" style="display:none" onclick="if(event.target===this)closeDataModal()">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <span class="modal-title">Playlist Data</span>
+      <button class="modal-close" onclick="closeDataModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-filter">
+      <button class="quality-btn active" id="mf-all" onclick="setDataFilter('all')">All Videos</button>
+      <button class="quality-btn" id="mf-unavail" onclick="setDataFilter('unavailable')">Unavailable Only</button>
+      <span class="modal-hint" id="modalHint"></span>
+    </div>
+    <div class="modal-body" id="modalTableWrap"></div>
+    <div class="modal-foot">
+      <button class="btn outline" onclick="copyDataTsv()">⧉ Copy as TSV</button>
+      <button class="btn outline" onclick="downloadCsv()">⬇ Download CSV</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = 'http://localhost:3001';
 
@@ -787,6 +904,24 @@ let videoStatuses = {};
 let availableVideos = [];     // downloadable videos (available === true)
 let unavailableVideos = [];   // recovery candidates (available === false)
 let recoveryDone = false;     // becomes true once recovery completes (gates CSV)
+
+// ── Theme (dark/light) ─────────────────────────────────────────────────
+// The head script already set documentElement.dataset.theme before paint;
+// here we just sync the toggle's icon and handle clicks.
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    btn.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+  }
+}
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem('pldl-theme', next); } catch (e) {}
+  applyTheme(next);
+}
+applyTheme(document.documentElement.dataset.theme || 'dark');
 
 // ── Backend health check ───────────────────────────────────────────────
 async function checkBackend() {
@@ -860,7 +995,7 @@ async function analyzePlaylist() {
 
     const list = document.getElementById('videoList');
     list.innerHTML = availableVideos.map(v => `
-      <div class="video-item" id="vi-${v.index}">
+      <div class="video-item" id="vi-${v.index}"${(v.dateAdded || v.videoPublishedAt) ? ` title="${escHtml(`Added to playlist ${v.dateAdded || '?'} · Uploaded ${v.videoPublishedAt || '?'}`)}"` : ''}>
         <div class="video-progress-bg" id="vp-${v.index}" style="width:0%"></div>
         <div class="video-index">${String(v.index).padStart(2,'0')}</div>
         <div style="flex:1; min-width:0;">
@@ -1342,6 +1477,7 @@ function clearAll() {
   unavailableVideos = [];
   recoveryDone = false;
   if (eventSource) { eventSource.close(); eventSource = null; }
+  closeDataModal();
   document.getElementById('urlInput').value = '';
   document.getElementById('playlistCard').style.display = 'none';
   document.getElementById('qualityCard').style.display = 'none';
@@ -1350,6 +1486,111 @@ function clearAll() {
   document.getElementById('completeBanner').style.display = 'none';
   document.getElementById('urlStatus').style.display = 'none';
   document.getElementById('downloadBtn').disabled = false;
+}
+
+// ── Data viewer modal ──────────────────────────────────────────────────
+let dataFilter = 'all';
+
+// Merge available + unavailable into one ordered list (filtered), tagging
+// each with _avail so the renderers know which columns apply.
+function dataRows() {
+  let rows = [];
+  if (dataFilter !== 'unavailable') rows = rows.concat(availableVideos.map(v => ({ ...v, _avail: true })));
+  rows = rows.concat(unavailableVideos.map(v => ({ ...v, _avail: false })));
+  rows.sort((a, b) => (a.index || 0) - (b.index || 0));
+  return rows;
+}
+
+function openDataModal() {
+  renderDataTable();
+  document.getElementById('dataModal').style.display = 'flex';
+  document.addEventListener('keydown', dataModalEsc);
+}
+function closeDataModal() {
+  document.getElementById('dataModal').style.display = 'none';
+  document.removeEventListener('keydown', dataModalEsc);
+}
+function dataModalEsc(e) { if (e.key === 'Escape') closeDataModal(); }
+
+function setDataFilter(f) {
+  dataFilter = f;
+  document.getElementById('mf-all').classList.toggle('active', f === 'all');
+  document.getElementById('mf-unavail').classList.toggle('active', f === 'unavailable');
+  renderDataTable();
+}
+
+function renderDataTable() {
+  const wrap = document.getElementById('modalTableWrap');
+  const rows = dataRows();
+  document.getElementById('modalHint').textContent =
+    `${rows.length} row${rows.length !== 1 ? 's' : ''}` + (playlist ? ` · "${playlist.title}"` : '');
+
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="modal-hint" style="margin:0;">No playlist loaded yet.</div>`;
+    return;
+  }
+
+  const body = rows.map(v => {
+    const idx = v.index != null ? String(v.index).padStart(2, '0') : '··';
+    const status = v._avail ? 'available' : (v.availability || 'unavailable');
+    const title = v._avail ? (v.title || '') : (v.recoveredTitle || '(not recovered)');
+    const watch = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    const lastAlive = (!v._avail && v.lastSeenAlive) ? v.lastSeenAlive : '—';
+    const gone = (!v._avail && v.firstSeenGone) ? v.firstSeenGone : '—';
+    let links = `<a href="${escHtml(watch)}" target="_blank" rel="noopener">YouTube</a>`;
+    if (!v._avail) {
+      links += `<a href="https://filmot.com/video/${escHtml(v.id)}" target="_blank" rel="noopener">Filmot</a>`;
+      if (v.waybackSnapshot) links += `<a href="${escHtml(v.waybackSnapshot)}" target="_blank" rel="noopener">Wayback</a>`;
+    }
+    return `<tr>
+      <td class="dt-mono">${idx}</td>
+      <td><span class="avail-badge ${escHtml(status)}">${escHtml(status)}</span></td>
+      <td class="dt-title">${escHtml(title)}</td>
+      <td class="dt-mono">${escHtml(v.dateAdded || '—')}</td>
+      <td class="dt-mono">${escHtml(v.videoPublishedAt || '—')}</td>
+      <td class="dt-mono">${escHtml(lastAlive)}</td>
+      <td class="dt-mono">${escHtml(gone)}</td>
+      <td class="dt-links">${links}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table class="data-table">
+    <thead><tr>
+      <th>#</th><th>Status</th><th>Title</th><th>Added</th><th>Uploaded</th>
+      <th>Last seen</th><th>Gone by</th><th>Links</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+// Copy the current view as TSV (pastes cleanly into Sheets/Excel).
+function copyDataTsv() {
+  const header = ['#', 'status', 'title', 'video_id', 'added_to_playlist', 'uploaded', 'last_seen_alive', 'first_seen_gone', 'watch_url'];
+  const lines = [header.join('\t')];
+  dataRows().forEach(v => {
+    const status = v._avail ? 'available' : (v.availability || 'unavailable');
+    const title = (v._avail ? (v.title || '') : (v.recoveredTitle || '')).replace(/[\t\n\r]/g, ' ');
+    lines.push([
+      v.index != null ? v.index : '',
+      status,
+      title,
+      v.id,
+      v.dateAdded || '',
+      v.videoPublishedAt || '',
+      v._avail ? '' : (v.lastSeenAlive || ''),
+      v._avail ? '' : (v.firstSeenGone || ''),
+      v.url || `https://www.youtube.com/watch?v=${v.id}`,
+    ].join('\t'));
+  });
+  const hint = document.getElementById('modalHint');
+  const prev = hint.textContent;
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    hint.textContent = 'Copied to clipboard ✓';
+    setTimeout(() => { hint.textContent = prev; }, 1500);
+  }).catch(() => {
+    hint.textContent = 'Copy failed — select the table manually';
+    setTimeout(() => { hint.textContent = prev; }, 2000);
+  });
 }
 
 function escHtml(str) {

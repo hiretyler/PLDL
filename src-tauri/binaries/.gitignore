@@ -1,0 +1,3 @@
+# Sidecar binaries are produced at build time (npm run build:sidecar) and
+# renamed with the Rust target triple. They are not checked in.
+pldl-server-*

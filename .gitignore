@@ -1,6 +1,12 @@
 # Dependencies
 node_modules/
 
+# Build artifacts (SEA sidecar, bundled UI, Tauri/Rust output)
+build/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
 # Logs
 logs/
 *.log

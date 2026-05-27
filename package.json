@@ -1,6 +1,14 @@
 {
+  "scripts": {
+    "start": "node server.js",
+    "build:sidecar": "node scripts/build-sidecar.mjs"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "postject": "^1.0.0-alpha.6"
   }
 }

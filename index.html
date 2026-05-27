@@ -23,22 +23,25 @@
     --muted:    #6b6b78;
     --mono:     'Space Mono', monospace;
     --sans:     'Barlow', sans-serif;
+    --on-accent:#000;            /* text/icon color on a solid accent fill */
   }
 
-  /* Light theme — flips the neutrals, keeps a deeper amber that stays legible
-     both as button fill (black text) and as accent text on white. */
+  /* Light theme — flips the neutrals and uses a cool-blue accent (the brand
+     amber stays for dark mode). Accent tints derive from --amber via color-mix,
+     so they follow the accent automatically. */
   html[data-theme="light"] {
-    --bg:       #f4f3ee;
+    --bg:       #f5f6f8;
     --surface:  #ffffff;
-    --surface2: #ebeae3;
-    --border:   #d7d6cc;
-    --amber:    #b45309;
-    --amber-dim:#e3c08a;
+    --surface2: #eceef2;
+    --border:   #d5d8df;
+    --amber:    #1d4ed8;         /* accent (blue-700) */
+    --amber-dim:#c3d4f5;         /* soft blue for subtle borders */
     --green:    #15803d;
     --red:      #dc2626;
     --blue:     #2563eb;
-    --text:     #1a1a1e;
-    --muted:    #76767e;
+    --text:     #16181d;
+    --muted:    #6a6f7a;
+    --on-accent:#fff;            /* white text on the blue fill */
   }
 
   html { transition: background-color 0.2s ease; }
@@ -119,6 +122,18 @@
   .dt-links a { margin-right: 8px; font-family: var(--mono); font-size: 11px; color: var(--blue); text-decoration: none; white-space: nowrap; }
   .dt-links a:hover { text-decoration: underline; }
   .avail-badge.available { color: var(--green); border-color: rgba(34,197,94,0.4); }
+
+  /* ── SETUP GUIDE TABS ── */
+  .setup-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .setup-tab {
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--mono); font-size: 11px; padding: 6px 16px; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.15s;
+  }
+  .setup-tab:hover { border-color: var(--amber); color: var(--amber); }
+  .setup-tab.active { background: var(--amber); color: var(--on-accent); border-color: var(--amber); font-weight: 700; }
+  .setup-prereq { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .setup-prereq a, .step-content a { color: var(--amber); }
 
   /* ── GRAIN ── */
   body::before {
@@ -229,7 +244,7 @@
 
   .btn {
     background: var(--amber);
-    color: #000;
+    color: var(--on-accent);
     border: none;
     padding: 12px 24px;
     font-family: var(--sans);
@@ -309,7 +324,7 @@
   }
 
   .quality-btn:hover { border-color: var(--amber); color: var(--amber); }
-  .quality-btn.active { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 700; }
+  .quality-btn.active { background: var(--amber); color: var(--on-accent); border-color: var(--amber); font-weight: 700; }
 
   /* ── PLAYLIST INFO ── */
   .playlist-meta {
@@ -331,7 +346,7 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--amber);
-    background: rgba(245, 158, 11, 0.1);
+    background: color-mix(in srgb, var(--amber) 10%, transparent);
     padding: 4px 10px;
     border: 1px solid var(--amber-dim);
   }
@@ -363,7 +378,7 @@
     flex-shrink: 0;            /* keep natural height; let the list scroll instead of compressing rows */
   }
 
-  .video-item.active { border-left-color: var(--amber); background: rgba(245,158,11,0.04); }
+  .video-item.active { border-left-color: var(--amber); background: color-mix(in srgb, var(--amber) 4%, transparent); }
   .video-item.done   { border-left-color: var(--green); }
   .video-item.error  { border-left-color: var(--red); }
 
@@ -410,7 +425,7 @@
   .video-progress-bg {
     position: absolute;
     left: 0; top: 0; bottom: 0;
-    background: rgba(245,158,11,0.07);
+    background: color-mix(in srgb, var(--amber) 7%, transparent);
     transition: width 0.3s ease;
     pointer-events: none;
   }
@@ -532,7 +547,7 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--amber);
-    background: rgba(245,158,11,0.08);
+    background: color-mix(in srgb, var(--amber) 8%, transparent);
     padding: 3px 8px;
     border: 1px solid var(--amber-dim);
     display: inline-block;
@@ -832,41 +847,160 @@
 
   <!-- SETUP GUIDE -->
   <div class="card fade-in" id="setupCard">
-    <div class="card-label">Setup Guide</div>
-    <div class="setup-steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <p>Download the <strong>server.js</strong> file from Claude, then install dependencies:</p>
-          <code>npm install express cors</code>
+    <div class="card-label" id="setupLabel">macOS Setup Guide</div>
+    <div class="setup-tabs">
+      <button class="setup-tab active" data-os="mac" onclick="setSetupOS('mac')">macOS</button>
+      <button class="setup-tab" data-os="windows" onclick="setSetupOS('windows')">Windows</button>
+      <button class="setup-tab" data-os="linux" onclick="setSetupOS('linux')">Linux</button>
+    </div>
+    <p class="setup-prereq">Requires <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 18+</a>. Get the project from <a href="https://github.com/hiretyler/PLDL" target="_blank" rel="noopener">GitHub</a> (clone it, or use the green <strong>Code &rarr; Download ZIP</strong> button).</p>
+
+    <!-- macOS -->
+    <div class="setup-panel" id="setup-mac">
+      <div class="setup-steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <p>Download the project and install dependencies:</p>
+            <code>git clone https://github.com/hiretyler/PLDL.git</code>
+            <code>cd PLDL &amp;&amp; npm install</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <p>Install <strong>yt-dlp</strong> (the YouTube downloader engine):</p>
+            <code>brew install yt-dlp</code> &nbsp; or &nbsp; <code>pip install yt-dlp</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <p>Install <strong>ffmpeg</strong> (for merging video + audio streams):</p>
+            <code>brew install ffmpeg</code> &nbsp; or visit <a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener">ffmpeg.org</a>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <p>Start the backend server (run inside the <code>PLDL</code> folder):</p>
+            <code>node server.js</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <p>Open the app in your browser:</p>
+            <code>http://localhost:3001</code>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">If you're already viewing this page, it reconnects automatically once the server is running.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <p>Paste a YouTube playlist URL above and click <strong>Analyze</strong>.</p>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">Downloads save to <code>~/Downloads/YouTube Playlists/</code></p>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <p>Install <strong>yt-dlp</strong> (the YouTube downloader engine):</p>
-          <code>brew install yt-dlp</code> &nbsp; or &nbsp; <code>pip install yt-dlp</code>
+    </div>
+
+    <!-- Windows -->
+    <div class="setup-panel" id="setup-windows" style="display:none">
+      <div class="setup-steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <p>Download the project and install dependencies:</p>
+            <code>git clone https://github.com/hiretyler/PLDL.git</code>
+            <code>cd PLDL &amp;&amp; npm install</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <p>Install <strong>yt-dlp</strong> (the YouTube downloader engine):</p>
+            <code>winget install yt-dlp</code> &nbsp; or &nbsp; <code>pip install yt-dlp</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <p>Install <strong>ffmpeg</strong> (for merging video + audio streams):</p>
+            <code>winget install ffmpeg</code> &nbsp; or visit <a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener">ffmpeg.org</a>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <p>Start the backend server (run inside the <code>PLDL</code> folder):</p>
+            <code>node server.js</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <p>Open the app in your browser:</p>
+            <code>http://localhost:3001</code>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">If you're already viewing this page, it reconnects automatically once the server is running.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <p>Paste a YouTube playlist URL above and click <strong>Analyze</strong>.</p>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">Downloads save to <code>%USERPROFILE%\Downloads\YouTube Playlists\</code></p>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <p>Install <strong>ffmpeg</strong> (for merging video + audio streams):</p>
-          <code>brew install ffmpeg</code> &nbsp; or visit <code>ffmpeg.org</code>
+    </div>
+
+    <!-- Linux -->
+    <div class="setup-panel" id="setup-linux" style="display:none">
+      <div class="setup-steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <p>Download the project and install dependencies:</p>
+            <code>git clone https://github.com/hiretyler/PLDL.git</code>
+            <code>cd PLDL &amp;&amp; npm install</code>
+          </div>
         </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <p>Start the backend server:</p>
-          <code>node server.js</code>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <p>Install <strong>yt-dlp</strong> (the YouTube downloader engine):</p>
+            <code>pipx install yt-dlp</code> &nbsp; or &nbsp; <code>pip install yt-dlp</code>
+          </div>
         </div>
-      </div>
-      <div class="step">
-        <div class="step-num">5</div>
-        <div class="step-content">
-          <p>Paste a YouTube playlist URL above and click <strong>Analyze</strong>.</p>
-          <p style="margin-top:4px; font-size:12px; color: var(--muted);">Downloads save to <code>~/Downloads/YouTube Playlists/</code></p>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <p>Install <strong>ffmpeg</strong> (for merging video + audio streams):</p>
+            <code>sudo apt install ffmpeg</code> &nbsp; or your distro's package manager
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <p>Start the backend server (run inside the <code>PLDL</code> folder):</p>
+            <code>node server.js</code>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <p>Open the app in your browser:</p>
+            <code>http://localhost:3001</code>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">If you're already viewing this page, it reconnects automatically once the server is running.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <p>Paste a YouTube playlist URL above and click <strong>Analyze</strong>.</p>
+            <p style="margin-top:4px; font-size:12px; color: var(--muted);">Downloads save to <code>~/Downloads/YouTube Playlists/</code></p>
+          </div>
         </div>
       </div>
     </div>
@@ -922,6 +1056,16 @@ function toggleTheme() {
   applyTheme(next);
 }
 applyTheme(document.documentElement.dataset.theme || 'dark');
+
+// ── Setup guide OS tabs ────────────────────────────────────────────────
+function setSetupOS(os) {
+  const names = { mac: 'macOS', windows: 'Windows', linux: 'Linux' };
+  ['mac', 'windows', 'linux'].forEach(o => {
+    document.getElementById('setup-' + o).style.display = (o === os) ? 'block' : 'none';
+    document.querySelector(`.setup-tab[data-os="${o}"]`).classList.toggle('active', o === os);
+  });
+  document.getElementById('setupLabel').textContent = `${names[os]} Setup Guide`;
+}
 
 // ── Backend health check ───────────────────────────────────────────────
 async function checkBackend() {

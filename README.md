@@ -31,8 +31,7 @@ You saved a YouTube playlist years ago. Some videos are now deleted or private. 
 ## Requirements
 
 - **Node.js 18+** (uses global `fetch`; tested on 25)
-- **yt-dlp** on PATH - [installation guide](https://github.com/yt-dlp/yt-dlp#installation)
-- **ffmpeg** on PATH - [download](https://ffmpeg.org/download.html)
+- **yt-dlp** and **ffmpeg** — used if already on your PATH, otherwise **downloaded automatically on first run** into `~/.pldl/bin`. (yt-dlp downloads reliably; ffmpeg's auto-download is best-effort per platform, and the app still works for non-merged formats if it's unavailable.) To install them yourself instead, see [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) and [ffmpeg](https://ffmpeg.org/download.html).
 
 ---
 

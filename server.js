@@ -11,7 +11,7 @@
 
 const express = require('express');
 const cors = require('cors');
-const { exec, spawn } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -21,6 +21,7 @@ const { recoverTitles } = require('./lib/recover');
 const { getTimelines } = require('./lib/timeline');
 const { recoverMedia } = require('./lib/archive');
 const { getPlaylistItemDates } = require('./lib/ytdata');
+const { ensureBinaries } = require('./lib/bindeps');
 
 // Load optional .env (e.g. YOUTUBE_API_KEY) without an npm dependency.
 try { process.loadEnvFile(); } catch { /* no .env file — enrichment stays off */ }
@@ -33,6 +34,51 @@ app.use(express.json());
 
 // Serve the PLDL frontend (index.html) so the whole app runs from `node server.js`
 app.use(express.static(path.join(__dirname)));
+
+// ── Binary dependencies (yt-dlp / ffmpeg) ───────────────────────────────
+// Resolved at startup: found on PATH, or downloaded into ~/.pldl/bin on first
+// run. The yt-dlp path is published via PLDL_YTDLP (read by lib/playlist.js and
+// lib/archive.js); ffmpeg's dir via PLDL_FFMPEG_DIR (passed as --ffmpeg-location).
+let deps = { status: 'pending', ytdlp: null, ffmpegDir: null, error: null };
+
+function ytdlpBin() { return process.env.PLDL_YTDLP || 'yt-dlp'; }
+function ffmpegLocationArgs() {
+  return process.env.PLDL_FFMPEG_DIR ? ['--ffmpeg-location', process.env.PLDL_FFMPEG_DIR] : [];
+}
+
+// 503 guard for endpoints that need yt-dlp; returns false if not ready.
+function depsReady(res) {
+  if (deps.status === 'ready') return true;
+  res.status(503).json({
+    error: deps.status === 'error'
+      ? `Dependency setup failed: ${deps.error}`
+      : 'Setting up yt-dlp / ffmpeg — try again in a moment.',
+    depsStatus: deps.status,
+  });
+  return false;
+}
+
+async function initDeps() {
+  deps.status = 'resolving';
+  try {
+    const r = await ensureBinaries({
+      onProgress: (e) => {
+        deps.status = 'downloading';
+        broadcast({ type: 'deps', name: e.name, state: e.state, message: e.message || null });
+      },
+    });
+    process.env.PLDL_YTDLP = r.ytdlp;
+    if (r.ffmpegDir) process.env.PLDL_FFMPEG_DIR = r.ffmpegDir;
+    deps = { status: 'ready', ytdlp: r.ytdlp, ffmpegDir: r.ffmpegDir || null, error: null };
+    broadcast({ type: 'deps', state: 'ready' });
+    console.log(`Dependencies ready — yt-dlp: ${r.ytdlp}` +
+      (r.ffmpegDir ? `, ffmpeg: ${r.ffmpegDir}` : ' (ffmpeg not found — best-quality merges may be unavailable)'));
+  } catch (err) {
+    deps = { status: 'error', ytdlp: null, ffmpegDir: null, error: err.message };
+    broadcast({ type: 'deps', state: 'error', message: err.message });
+    console.error('Dependency setup failed:', err.message);
+  }
+}
 
 // SSE clients registry
 const sseClients = new Map();
@@ -82,6 +128,7 @@ app.get('/api/events', (req, res) => {
 app.get('/api/playlist-info', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'URL is required' });
+  if (!depsReady(res)) return;
 
   try {
     const data = await getPlaylist(url);
@@ -215,6 +262,7 @@ app.post('/api/download-recovered', async (req, res) => {
   if (!Array.isArray(videos) || videos.length === 0) {
     return res.status(400).json({ error: 'videos must be a non-empty array' });
   }
+  if (!depsReady(res)) return;
 
   // Recovered files land in a "Recovered" subfolder of the playlist output dir.
   const baseDir = outputDir
@@ -269,6 +317,7 @@ app.post('/api/download-recovered', async (req, res) => {
 app.post('/api/download', (req, res) => {
   const { url, outputDir, quality = 'best' } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
+  if (!depsReady(res)) return;
 
   // Default output directory: ~/Downloads/YouTube Playlists/
   const finalDir = outputDir
@@ -305,6 +354,7 @@ app.post('/api/download', (req, res) => {
     '--no-playlist-reverse',
     '--newline',
     '--progress',
+    ...ffmpegLocationArgs(),
     url,
   ];
 
@@ -313,7 +363,7 @@ app.post('/api/download', (req, res) => {
 
   res.json({ status: 'started', outputDir: finalDir });
 
-  const ytdlp = spawn('yt-dlp', args);
+  const ytdlp = spawn(ytdlpBin(), args);
 
   let currentFile = null;
   let currentIndex = 0;
@@ -404,12 +454,13 @@ app.get('/api/health', (req, res) => {
     archive: typeof recoverMedia === 'function',
     ytdata: typeof getPlaylistItemDates === 'function',
   };
-  exec('yt-dlp --version', (err, stdout) => {
+  execFile(ytdlpBin(), ['--version'], (err, stdout) => {
     res.json({
       status: 'ok',
       ytdlp: err ? 'not found' : stdout.trim(),
       libs,
       ytApiKey: !!process.env.YOUTUBE_API_KEY,
+      deps: { status: deps.status, ffmpeg: !!deps.ffmpegDir, error: deps.error },
     });
   });
 });
@@ -418,4 +469,7 @@ app.listen(PORT, () => {
   console.log(`\n🎬 YouTube Playlist Downloader Backend`);
   console.log(`   Running at: http://localhost:${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
+  // Resolve yt-dlp / ffmpeg (download on first run) once the server is up,
+  // so the UI can connect and show setup progress over SSE.
+  initDeps();
 });

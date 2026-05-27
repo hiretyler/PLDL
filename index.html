@@ -1073,7 +1073,19 @@ async function checkBackend() {
   try {
     const r = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(3000) });
     const d = await r.json();
-    badge.innerHTML = `<span class="backend-badge connected"><span class="dot green"></span>BACKEND CONNECTED · yt-dlp ${d.ytdlp}</span>`;
+    const depStatus = d.deps && d.deps.status;
+    if (depStatus && depStatus !== 'ready' && depStatus !== 'error') {
+      // First run: yt-dlp / ffmpeg are being detected or downloaded.
+      badge.innerHTML = `<span class="backend-badge checking"><span class="dot amber"></span>PREPARING · downloading yt-dlp / ffmpeg…</span>`;
+      setTimeout(checkBackend, 1500);
+      return;
+    }
+    if (depStatus === 'error') {
+      badge.innerHTML = `<span class="backend-badge disconnected"><span class="dot red"></span>SETUP ERROR · ${escHtml(d.deps.error || 'dependency setup failed')}</span>`;
+      return;
+    }
+    const ff = (d.deps && d.deps.ffmpeg === false) ? ' · no ffmpeg' : '';
+    badge.innerHTML = `<span class="backend-badge connected"><span class="dot green"></span>BACKEND CONNECTED · yt-dlp ${escHtml(d.ytdlp)}${ff}</span>`;
   } catch {
     badge.innerHTML = `<span class="backend-badge disconnected"><span class="dot red"></span>BACKEND OFFLINE</span>`;
     setTimeout(checkBackend, 5000);

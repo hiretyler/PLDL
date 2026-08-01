@@ -448,6 +448,13 @@ app.post('/api/download', (req, res) => {
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 
+// Cache the yt-dlp version per binary path. The standalone build unpacks a
+// bundled runtime on every invocation (seconds of cold-start), and the
+// frontend polls /api/health every 1.5s during dependency setup — spawning
+// yt-dlp per poll made health itself hang.
+let ytdlpVersion = null;
+let ytdlpVersionFor = null;
+
 app.get('/api/health', (req, res) => {
   const libs = {
     playlist: typeof getPlaylist === 'function',
@@ -456,14 +463,23 @@ app.get('/api/health', (req, res) => {
     archive: typeof recoverMedia === 'function',
     ytdata: typeof getPlaylistItemDates === 'function',
   };
-  execFile(ytdlpBin(), ['--version'], (err, stdout) => {
-    res.json({
-      status: 'ok',
-      ytdlp: err ? 'not found' : stdout.trim(),
-      libs,
-      ytApiKey: !!process.env.YOUTUBE_API_KEY,
-      deps: { status: deps.status, ffmpeg: !!deps.ffmpegDir, error: deps.error },
-    });
+  const payload = (ytdlp) => ({
+    status: 'ok',
+    ytdlp,
+    libs,
+    ytApiKey: !!process.env.YOUTUBE_API_KEY,
+    deps: { status: deps.status, ffmpeg: !!deps.ffmpegDir, error: deps.error },
+  });
+  const bin = ytdlpBin();
+  if (ytdlpVersion && ytdlpVersionFor === bin) {
+    return res.json(payload(ytdlpVersion));
+  }
+  execFile(bin, ['--version'], (err, stdout) => {
+    if (!err && stdout.trim()) {
+      ytdlpVersion = stdout.trim();
+      ytdlpVersionFor = bin;
+    }
+    res.json(payload(err ? 'not found' : stdout.trim()));
   });
 });
 

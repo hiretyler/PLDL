@@ -465,11 +465,45 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, onListen);
+
+function onListen() {
   console.log(`\n🎬 YouTube Playlist Downloader Backend`);
   console.log(`   Running at: http://localhost:${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
   // Resolve yt-dlp / ffmpeg (download on first run) once the server is up,
   // so the UI can connect and show setup progress over SSE.
   initDeps();
+}
+
+// If port 3001 is momentarily held by a just-orphaned sidecar from a previous
+// launch (see PLDL_SIDECAR parent-watch below), it self-terminates within ~1s.
+// Retry the bind across that handoff window instead of crashing, so a fresh
+// launch reliably reclaims the port.
+let bindRetries = 0;
+const MAX_BIND_RETRIES = 20; // ~10s at 500ms
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE' && bindRetries < MAX_BIND_RETRIES) {
+    bindRetries++;
+    console.error(`Port ${PORT} in use; retry ${bindRetries}/${MAX_BIND_RETRIES} in 500ms…`);
+    setTimeout(() => server.listen(PORT), 500);
+    return;
+  }
+  console.error(`Fatal: could not bind port ${PORT}: ${err.message}`);
+  process.exit(1);
 });
+
+// When bundled as the Tauri sidecar (PLDL_SIDECAR=1), exit as soon as the
+// desktop app that spawned us dies. Otherwise an abnormal app exit (crash,
+// force-quit, SIGKILL) reparents us to launchd (ppid 1) and we'd linger on the
+// port — blocking or stale-serving the next launch. Gated by the env var so a
+// plain `node server.js` in dev is unaffected.
+if (process.env.PLDL_SIDECAR) {
+  const parentPid = process.ppid;
+  setInterval(() => {
+    if (process.ppid !== parentPid || process.ppid === 1) {
+      console.error('Parent process gone; sidecar exiting.');
+      process.exit(0);
+    }
+  }, 1000).unref();
+}

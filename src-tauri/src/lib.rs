@@ -29,6 +29,10 @@ pub fn run() {
             let (mut rx, child) = app
                 .shell()
                 .sidecar("pldl-server")?
+                // Signals server.js to watch our PID and self-terminate if we
+                // (the desktop app) die abnormally, so it never orphans onto
+                // the fixed port and blocks the next launch.
+                .env("PLDL_SIDECAR", "1")
                 .spawn()?;
 
             // Store the child so we can kill it on shutdown.

@@ -33,7 +33,7 @@ There is no build, lint, or test setup.
 
 - **`lib/playlist.js`** - Enumerates every video in a YouTube playlist via `yt-dlp --flat-playlist -J`. Returns available and unavailable videos in a single array with `available: boolean` and `availability: 'public'|'private'|'deleted'|'unlisted'|'unavailable'` per entry. Availability is classified from the placeholder title (`[Private video]`, `[Deleted video]`, `[Unavailable video]`) because the per-entry `availability` field is null in flat mode for all entries.
 
-- **`lib/recover.js`** - Wayback Machine title recovery. For each video ID: queries the Wayback CDX API for the earliest 200-status snapshot, fetches it with the `id_` raw-content modifier (no toolbar rewrites), and extracts the title (prefers `og:title`, falls back to `<title>` with " - YouTube" stripped). Uses Node's global `fetch` (Node 18+). No npm dependencies. Concurrency: 3 simultaneous requests, 500ms delay between starts.
+- **`lib/recover.js`** - Wayback Machine title recovery. For each video ID: queries the Wayback CDX API for up to 5 digest-distinct 200-status snapshots (earliest first, 30s timeout + one retry - the CDX API is slow and flaky), fetches each with the `id_` raw-content modifier (no toolbar rewrites) until one yields a title. Extraction order: `og:title`, then `<title>` (strips both the " - YouTube" suffix and the 2009-era "YouTube - " prefix, collapses wrapped whitespace), then `videoDetails.title` from the embedded `ytInitialPlayerResponse` JSON (brace-matched, string-aware) - modern client-rendered snapshots have no server-rendered title tags. A snapshot whose `playabilityStatus` is not OK was crawled after removal (dead page); it yields no title but the walk continues. Uses Node's global `fetch` (Node 18+). No npm dependencies. Concurrency: 3 simultaneous requests, 500ms delay between starts.
 
 - **`lib/timeline.js`** - Wayback Machine snapshot-history bracketing. For each video ID: queries Wayback CDX for the full snapshot history, identifies `lastSeenAlive` (latest snapshot returning HTTP 200) and `firstSeenGone` (earliest 404/410 or later status after that), thereby bracketing the deletion window. Best-effort only - imperfect because some deleted YouTube pages still return HTTP 200, and archive.org must have crawled the page around its deletion. (The four investigative link-outs - Filmot, Ghostarchive, archive.today, Reddit search - are built client-side in `index.html` from the video ID, not here.)
 
@@ -80,3 +80,14 @@ Video-recovery events (from `POST /api/download-recovered`):
 - **Output filenames** - yt-dlp uses the template `%(playlist_index|)s%(playlist_index& - |)s%(title)s.%(ext)s` with `--restrict-filenames`, `--windows-filenames`, and `--trim-filenames 180`. `cleanFilename()` in `server.js` is a separate sanitizer used only for the `cleanTitle` field returned by `/api/playlist-info` - it does not affect what yt-dlp writes to disk.
 
 - **Investigative link services block bots** - Filmot, Ghostarchive, archive.today, and Reddit search all reject bot requests. `lib/timeline.js` builds the links server-side, but they are only suitable for human browser clicks, never pre-fetched by server-side code.
+
+## Local test server
+
+Canonical local port: **3001** - keep this consistent across sessions so
+it does not collide with other ~/projects apps running at the same time.
+
+Start it with:
+
+    npm start
+
+(Port registry lives in the tgeddes.dev /dash tracker: dash/projects.json.)

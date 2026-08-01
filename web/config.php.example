@@ -1,0 +1,9 @@
+<?php
+// Copy to config.php beside api.php on the server (config.php is never
+// committed). Without it, Wayback research still works but playlist
+// enumeration reports "not configured".
+return [
+  // YouTube Data API v3 key, used server-side only for playlist enumeration.
+  // Restrict it to the YouTube Data API in Google Cloud Console.
+  'youtube_api_key' => 'YOUR_KEY_HERE',
+];

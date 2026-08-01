@@ -170,6 +170,8 @@ app.get('/api/playlist-info', async (req, res) => {
       count: data.count,
       availableCount: data.availableCount,
       unavailableCount: data.unavailableCount,
+      expectedCount: data.expectedCount,
+      truncated: data.truncated,
       videos,
     });
   } catch (err) {

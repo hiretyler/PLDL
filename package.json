@@ -1,7 +1,8 @@
 {
   "scripts": {
     "start": "node server.js",
-    "build:sidecar": "node scripts/build-sidecar.mjs"
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "sync:web": "cp index.html ../tgeddes.dev/pldl/index.html && cp web/api.php ../tgeddes.dev/pldl/api.php"
   },
   "dependencies": {
     "cors": "^2.8.6",

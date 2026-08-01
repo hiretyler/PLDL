@@ -796,6 +796,20 @@
     </div>
   </div>
 
+  <!-- WEB-MODE DOWNLOAD CTA (web mode only, shown once a playlist loads) -->
+  <div class="card fade-in" id="webCtaCard" style="display:none">
+    <div class="card-label">Downloading</div>
+    <p style="font-size:13px; line-height:1.6; margin-bottom:14px;">
+      Downloading runs <strong>yt-dlp</strong> on your own machine, so it needs the
+      desktop app or a local copy of PLDL. This hosted page covers everything else:
+      playlist analysis, Wayback title recovery, deletion windows, and CSV export.
+    </p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="btn" href="https://github.com/hiretyler/PLDL/releases/latest" target="_blank" rel="noopener" style="text-decoration:none;">⬇ Desktop App (macOS)</a>
+      <a class="btn outline" href="https://github.com/hiretyler/PLDL" target="_blank" rel="noopener" style="text-decoration:none;">Run Locally — GitHub</a>
+    </div>
+  </div>
+
   <!-- UNAVAILABLE VIDEOS (hidden unless any are unavailable) -->
   <div class="card fade-in" id="unavailableCard" style="display:none">
     <div class="card-label">Unavailable Videos</div>
@@ -853,6 +867,7 @@
       <button class="setup-tab" data-os="windows" onclick="setSetupOS('windows')">Windows</button>
       <button class="setup-tab" data-os="linux" onclick="setSetupOS('linux')">Linux</button>
     </div>
+    <p class="setup-prereq" id="webSetupIntro" style="display:none">This hosted version analyzes playlists and researches deleted videos right here in your browser. To <strong>download</strong> videos (and pull archived copies of deleted ones), get the <a href="https://github.com/hiretyler/PLDL/releases/latest" target="_blank" rel="noopener">desktop app for macOS</a> — or run the full server locally:</p>
     <p class="setup-prereq">Requires <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js 18+</a>. Get the project from <a href="https://github.com/hiretyler/PLDL" target="_blank" rel="noopener">GitHub</a> (clone it, or use the green <strong>Code &rarr; Download ZIP</strong> button).</p>
 
     <!-- macOS -->
@@ -1029,7 +1044,13 @@
 </div>
 
 <script>
+// Where is this page running? local = the Express backend on :3001 (npm start
+// or the Tauri desktop app); web = static hosting (tgeddes.dev), where
+// downloading is unavailable and research goes through the same-origin api.php.
+const IS_WEB = /^https?:$/.test(location.protocol) &&
+  !['localhost:3001', '127.0.0.1:3001', 'tauri.localhost'].includes(location.host);
 const API = 'http://localhost:3001';
+const WEB_API = 'api.php';
 
 let playlist = null;
 let selectedQuality = 'best';
@@ -1067,9 +1088,15 @@ function setSetupOS(os) {
   document.getElementById('setupLabel').textContent = `${names[os]} Setup Guide`;
 }
 
+if (IS_WEB) document.getElementById('webSetupIntro').style.display = 'block';
+
 // ── Backend health check ───────────────────────────────────────────────
 async function checkBackend() {
   const badge = document.getElementById('backendBadge');
+  if (IS_WEB) {
+    badge.innerHTML = `<span class="backend-badge connected"><span class="dot green"></span>WEB MODE · analyze &amp; research</span>`;
+    return;
+  }
   try {
     const r = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(3000) });
     const d = await r.json();
@@ -1113,6 +1140,15 @@ function fmtDuration(s) {
 }
 
 // ── Analyze playlist ──────────────────────────────────────────────────
+// Mirror of lib/playlist.js extractPlaylistId, for web mode (the local
+// backend does its own extraction server-side).
+function extractListId(input) {
+  const raw = input.trim();
+  if (!/[/:?=&]/.test(raw) && /^[A-Za-z0-9_-]{10,}$/.test(raw)) return raw;
+  const m = raw.match(/[?&]list=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
 async function analyzePlaylist() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
@@ -1126,7 +1162,14 @@ async function analyzePlaylist() {
   status.innerHTML = `<span class="dot amber"></span> Fetching playlist info...`;
 
   try {
-    const r = await fetch(`${API}/api/playlist-info?url=${encodeURIComponent(url)}`);
+    let r;
+    if (IS_WEB) {
+      const listId = extractListId(url);
+      if (!listId) throw new Error('Paste a playlist URL (or a bare playlist id).');
+      r = await fetch(`${WEB_API}?action=playlist&id=${encodeURIComponent(listId)}`);
+    } else {
+      r = await fetch(`${API}/api/playlist-info?url=${encodeURIComponent(url)}`);
+    }
     const data = await r.json();
 
     if (!r.ok) throw new Error(data.error || 'Failed to fetch playlist');
@@ -1156,7 +1199,7 @@ async function analyzePlaylist() {
         <div class="video-index">${String(v.index).padStart(2,'0')}</div>
         <div style="flex:1; min-width:0;">
           <div class="video-title">${escHtml(v.title)}</div>
-          <div class="video-title clean">${escHtml(v.cleanTitle)}.mp4</div>
+          ${v.cleanTitle ? `<div class="video-title clean">${escHtml(v.cleanTitle)}.mp4</div>` : ''}
         </div>
         <div class="video-duration">${fmtDuration(v.duration)}</div>
         <div class="video-status" id="vs-${v.index}">·</div>
@@ -1164,13 +1207,19 @@ async function analyzePlaylist() {
     `).join('');
 
     document.getElementById('playlistCard').style.display = 'block';
-    document.getElementById('qualityCard').style.display = 'block';
+    document.getElementById('qualityCard').style.display = IS_WEB ? 'none' : 'block';
+    document.getElementById('downloadBtn').style.display = IS_WEB ? 'none' : '';
+    document.getElementById('webCtaCard').style.display = IS_WEB ? 'block' : 'none';
 
     renderUnavailable(unavailCount);
 
     let loadedMsg = `Loaded ${availCount} video${availCount !== 1 ? 's' : ''} — "${escHtml(data.title)}"`;
     if (unavailCount > 0) loadedMsg += ` · ${unavailCount} unavailable`;
-    status.innerHTML = `<span class="dot green"></span> ${loadedMsg}`;
+    if (data.truncated && data.expectedCount) {
+      loadedMsg += ` · ⚠ only ${data.count} of ${data.expectedCount} enumerated` +
+        (IS_WEB ? '' : ' — yt-dlp may be outdated');
+    }
+    status.innerHTML = `<span class="dot ${data.truncated ? 'amber' : 'green'}"></span> ${loadedMsg}`;
   } catch (e) {
     status.innerHTML = `<span class="dot red"></span> Error: ${escHtml(e.message)}`;
   }
@@ -1190,6 +1239,8 @@ function renderUnavailable(count) {
   arcStatus.innerHTML = '';
   document.getElementById('csvBtn').disabled = true;
   document.getElementById('archiveBtn').disabled = true;
+  // Archive video recovery shells out to yt-dlp — desktop/local only.
+  document.getElementById('archiveBtn').style.display = IS_WEB ? 'none' : '';
   document.getElementById('archiveBtnText').textContent = '⬇ Recover Videos';
   document.getElementById('recoverBtn').disabled = false;
   document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
@@ -1303,8 +1354,52 @@ function renderTimingLine(videoId) {
   }
 }
 
+// Web mode: the browser drives per-video research calls against the
+// same-origin api.php (one Wayback pass per video — title + deletion window
+// in a single request). No SSE needed; progress is client-side.
+async function webRecoverTitles() {
+  const btn = document.getElementById('recoverBtn');
+  const recStatus = document.getElementById('recoverStatus');
+  btn.disabled = true;
+  document.getElementById('recoverBtnText').innerHTML = '<span class="spinner"></span>';
+  recStatus.style.display = 'flex';
+  recStatus.innerHTML = `<span class="dot amber"></span> Researching videos via the Wayback Machine...`;
+
+  const queue = unavailableVideos.map(v => v.id);
+  const total = queue.length;
+  let done = 0, recovered = 0;
+
+  async function worker() {
+    while (queue.length) {
+      const id = queue.shift();
+      let label = '';
+      try {
+        // The Wayback CDX API alone can take 30-60s server-side; be patient.
+        const r = await fetch(`${WEB_API}?action=research&id=${encodeURIComponent(id)}`,
+          { signal: AbortSignal.timeout(150000) });
+        const d = await r.json();
+        if (r.ok) {
+          applyRecovered(id, d.title, d.waybackSnapshot, d);
+          if (d.title) { recovered++; label = ` — ${d.title}`; }
+        }
+      } catch (e) { /* per-video failure leaves the row unrecovered */ }
+      done++;
+      recStatus.innerHTML = `<span class="dot amber"></span> ${escHtml(`Researching... ${done}/${total}${label}`)}`;
+    }
+  }
+  await Promise.all([worker(), worker()]); // concurrency 2 — polite to archive.org
+
+  recoveryDone = true;
+  recStatus.innerHTML =
+    `<span class="dot green"></span> Recovered ${recovered} of ${total} title${total !== 1 ? 's' : ''}`;
+  btn.disabled = false;
+  document.getElementById('recoverBtnText').textContent = '⚡ Recover Titles';
+  document.getElementById('csvBtn').disabled = false;
+}
+
 async function recoverTitles() {
   if (!unavailableVideos.length) return;
+  if (IS_WEB) return webRecoverTitles();
   const ids = unavailableVideos.map(v => v.id);
 
   const btn = document.getElementById('recoverBtn');
@@ -1345,7 +1440,7 @@ function setRdlBadge(videoId, cls, text) {
 
 // ── Recover videos from the Internet Archive (best-effort) ─────────────
 async function recoverVideos() {
-  if (!unavailableVideos.length) return;
+  if (IS_WEB || !unavailableVideos.length) return;
 
   const btn = document.getElementById('archiveBtn');
   btn.disabled = true;
@@ -1575,7 +1670,7 @@ function handleSseMessage(e) {
 
 // ── Start download ────────────────────────────────────────────────────
 async function startDownload() {
-  if (!playlist) return;
+  if (IS_WEB || !playlist) return;
 
   const url = document.getElementById('urlInput').value.trim();
 
@@ -1637,6 +1732,7 @@ function clearAll() {
   document.getElementById('urlInput').value = '';
   document.getElementById('playlistCard').style.display = 'none';
   document.getElementById('qualityCard').style.display = 'none';
+  document.getElementById('webCtaCard').style.display = 'none';
   document.getElementById('unavailableCard').style.display = 'none';
   document.getElementById('progressCard').style.display = 'none';
   document.getElementById('completeBanner').style.display = 'none';
